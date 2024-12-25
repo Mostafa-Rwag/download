@@ -4,17 +4,14 @@ FROM python:3.9-slim
 # Set the working directory in the container
 WORKDIR /app
 
-# Copy the current directory contents into the container at /app
+# Copy the application files to the container
 COPY . /app
 
-# Install any needed packages specified in requirements.txt
-RUN pip install flask pytube
+# Install required Python packages
+RUN pip install --no-cache-dir flask pytube
 
 # Expose port 5000 for Flask
 EXPOSE 5000
 
-# Define environment variable to run Flask
-ENV FLASK_APP=app.py
-
-# Run the application
-CMD ["flask", "run", "--host=0.0.0.0", "--port=5000"]
+# Set the default command to run the application
+CMD ["python", "app.py"]
