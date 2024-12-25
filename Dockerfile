@@ -11,7 +11,7 @@ COPY . /app
 RUN pip install --no-cache-dir flask pytube requests
 
 # Expose port 5000 for Flask
-EXPOSE 5000
+EXPOSE 8080
 
 # Define the command to run the app
 CMD ["python", "app.py"]
