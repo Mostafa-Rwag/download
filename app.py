@@ -15,7 +15,13 @@ def custom_get(url):
 # Route to render the index page (HTML form)
 @app.route('/')
 def index():
-    return render_template('index.html')
+    try:
+        # Directly render the 'index.html' from the root directory
+        with open("index.html", "r") as file:
+            content = file.read()
+        return render_template_string(content)  # Renders the content of the index.html file
+    except Exception as e:
+        return str(e)
 
 # Route to handle video download
 @app.route('/download_video', methods=['POST'])
