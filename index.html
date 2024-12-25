@@ -78,13 +78,18 @@
                     put_data: put_data
                 })
             })
-            .then(response => response.blob()) // Expect a file download (video)
+            .then(response => {
+                if (response.ok) {
+                    return response.blob(); // Expect a video file
+                }
+                throw new Error("Failed to download video.");
+            })
             .then(blob => {
                 // Create a temporary URL for the video blob
                 const videoUrl = URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = videoUrl;
-                a.download = "downloaded_video.mp4"; // You can set the filename
+                a.download = "downloaded_video.mp4"; // You can set the filename here
                 document.body.appendChild(a);
                 a.click();
                 // Clean up the temporary URL
