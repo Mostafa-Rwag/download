@@ -3,35 +3,123 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>YouTube Downloader</title>
+    <title>Skin Disease Detection & Video Download</title>
     <style>
         body {
             font-family: Arial, sans-serif;
-            text-align: center;
-            margin: 50px;
+            margin: 0;
+            padding: 20px;
+            background-color: #f4f4f9;
         }
-        input[type="text"] {
-            width: 50%;
+        h1 {
+            color: #333;
+        }
+        .form-container {
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            margin: 20px 0;
+        }
+        input[type="text"], input[type="file"], input[type="submit"], button {
+            width: 100%;
             padding: 10px;
-            font-size: 16px;
+            margin: 10px 0;
+            border-radius: 5px;
+            border: 1px solid #ddd;
         }
         button {
-            padding: 10px 20px;
-            font-size: 16px;
-            margin-left: 10px;
+            background-color: #4CAF50;
+            color: white;
             cursor: pointer;
         }
-        .error {
-            color: red;
-            font-weight: bold;
+        button:hover {
+            background-color: #45a049;
+        }
+        .message {
+            font-size: 16px;
+            color: #333;
         }
     </style>
 </head>
 <body>
-    <h1>YouTube Video Downloader</h1>
-    <form method="POST" action="/download">
-        <input type="text" name="url" placeholder="Enter YouTube video URL" required>
-        <button type="submit">Download</button>
-    </form>
+
+    <h1>Skin Disease Detection and YouTube Video Download</h1>
+
+    <!-- Image Upload Form for Skin Disease Detection -->
+    <div class="form-container">
+        <h2>Upload Image for Skin Disease Detection</h2>
+        <form id="uploadForm" enctype="multipart/form-data">
+            <input type="file" name="image" required>
+            <button type="submit">Upload and Detect Disease</button>
+        </form>
+        <div id="diseaseResult" class="message"></div>
+    </div>
+
+    <!-- Video Download and PUT Request Form -->
+    <div class="form-container">
+        <h2>Download Video and Make PUT Request</h2>
+        <form id="videoForm">
+            <input type="text" name="video_url" placeholder="Enter YouTube Video URL" required>
+            <input type="text" name="put_url" placeholder="Enter PUT Request URL" required>
+            <input type="text" name="put_data" placeholder="Enter PUT Data (e.g. {'key': 'value'})" required>
+            <button type="submit">Download Video and Send PUT Request</button>
+        </form>
+        <div id="videoMessage" class="message"></div>
+    </div>
+
+    <script>
+        // Handle Image Upload and Skin Disease Detection
+        document.getElementById("uploadForm").addEventListener("submit", function(event) {
+            event.preventDefault();
+
+            let formData = new FormData();
+            formData.append("image", document.querySelector("input[type='file']").files[0]);
+
+            fetch("/upload_image", {
+                method: "POST",
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById("diseaseResult").innerHTML = "Predicted Disease: " + data.predicted_disease;
+            })
+            .catch(error => {
+                document.getElementById("diseaseResult").innerHTML = "Error: " + error;
+            });
+        });
+
+        // Handle Video Download and PUT Request
+        document.getElementById("videoForm").addEventListener("submit", function(event) {
+            event.preventDefault();
+
+            let video_url = document.querySelector("input[name='video_url']").value;
+            let put_url = document.querySelector("input[name='put_url']").value;
+            let put_data = JSON.parse(document.querySelector("input[name='put_data']").value);
+
+            fetch("/download_video", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    video_url: video_url,
+                    put_url: put_url,
+                    put_data: put_data
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById("videoMessage").innerHTML = `
+                    Download Message: ${data.download_message}<br>
+                    PUT Request Message: ${data.put_message}
+                `;
+            })
+            .catch(error => {
+                document.getElementById("videoMessage").innerHTML = "Error: " + error;
+            });
+        });
+    </script>
+
 </body>
 </html>
