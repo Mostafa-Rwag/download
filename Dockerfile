@@ -11,7 +11,7 @@ COPY . /app
 RUN pip install --no-cache-dir flask yt-dlp gunicorn
 
 # Expose port 5000 for Flask
-EXPOSE 8080
+EXPOSE 5000
 
 # Define the command to run the app
 CMD ["python", "app.py"]
