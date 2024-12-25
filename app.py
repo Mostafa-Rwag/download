@@ -3,7 +3,7 @@ import os
 from pytube import YouTube
 import requests
 
-app = Flask(__name__, 
+app = Flask(__name__,
             template_folder=os.getcwd(),  # Set the template folder to the current working directory
             static_folder=os.getcwd())    # Set the static folder to the current working directory
 
