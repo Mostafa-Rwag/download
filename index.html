@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Skin Disease Detection & Video Download</title>
+    <title>YouTube Video Download and PUT Request</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -21,7 +21,7 @@
             box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
             margin: 20px 0;
         }
-        input[type="text"], input[type="file"], input[type="submit"], button {
+        input[type="text"], input[type="submit"], button {
             width: 100%;
             padding: 10px;
             margin: 10px 0;
@@ -44,21 +44,11 @@
 </head>
 <body>
 
-    <h1>Skin Disease Detection and YouTube Video Download</h1>
-
-    <!-- Image Upload Form for Skin Disease Detection -->
-    <div class="form-container">
-        <h2>Upload Image for Skin Disease Detection</h2>
-        <form id="uploadForm" enctype="multipart/form-data">
-            <input type="file" name="image" required>
-            <button type="submit">Upload and Detect Disease</button>
-        </form>
-        <div id="diseaseResult" class="message"></div>
-    </div>
+    <h1>YouTube Video Download and PUT Request</h1>
 
     <!-- Video Download and PUT Request Form -->
     <div class="form-container">
-        <h2>Download Video and Make PUT Request</h2>
+        <h2>Download YouTube Video and Send PUT Request</h2>
         <form id="videoForm">
             <input type="text" name="video_url" placeholder="Enter YouTube Video URL" required>
             <input type="text" name="put_url" placeholder="Enter PUT Request URL" required>
@@ -69,26 +59,6 @@
     </div>
 
     <script>
-        // Handle Image Upload and Skin Disease Detection
-        document.getElementById("uploadForm").addEventListener("submit", function(event) {
-            event.preventDefault();
-
-            let formData = new FormData();
-            formData.append("image", document.querySelector("input[type='file']").files[0]);
-
-            fetch("/upload_image", {
-                method: "POST",
-                body: formData
-            })
-            .then(response => response.json())
-            .then(data => {
-                document.getElementById("diseaseResult").innerHTML = "Predicted Disease: " + data.predicted_disease;
-            })
-            .catch(error => {
-                document.getElementById("diseaseResult").innerHTML = "Error: " + error;
-            });
-        });
-
         // Handle Video Download and PUT Request
         document.getElementById("videoForm").addEventListener("submit", function(event) {
             event.preventDefault();
@@ -110,10 +80,12 @@
             })
             .then(response => response.json())
             .then(data => {
-                document.getElementById("videoMessage").innerHTML = `
-                    Download Message: ${data.download_message}<br>
-                    PUT Request Message: ${data.put_message}
-                `;
+                if (data.download_message) {
+                    document.getElementById("videoMessage").innerHTML = `
+                        Download Message: ${data.download_message}<br>
+                        PUT Request Message: ${data.put_message}
+                    `;
+                }
             })
             .catch(error => {
                 document.getElementById("videoMessage").innerHTML = "Error: " + error;
