@@ -1,11 +1,10 @@
 from flask import Flask, render_template_string, request, send_file
-import os
 from pytube import YouTube
-from urllib.error import HTTPError
+import os
 
 app = Flask(__name__)
 
-# HTML content inline (no templates folder)
+# HTML Form for the home page (index)
 index_html = '''
 <!DOCTYPE html>
 <html lang="en">
@@ -25,37 +24,33 @@ index_html = '''
 </html>
 '''
 
-# Route to render the index page (HTML form)
 @app.route('/')
 def index():
     return render_template_string(index_html)
 
-# Route to handle video download
 @app.route('/download_video', methods=['POST'])
 def download_video():
     video_url = request.form['video_url']
     
     try:
         yt = YouTube(video_url)
-        # Use a filter to get the best video stream
-        stream = yt.streams.filter(file_extension='mp4', only_video=True).first()
-
+        # Select the best stream (mp4, resolution)
+        stream = yt.streams.filter(progressive=True, file_extension='mp4').first()
+        
         if not stream:
-            return "No available video stream found. Please try a different video."
-
-        # Set the download file path (downloads to current working directory)
-        video_file_path = os.path.join(os.getcwd(), 'downloaded_video.mp4')
-
-        # Download video to the specified file path
-        stream.download(output_path=os.getcwd(), filename='downloaded_video.mp4')
-
-        # Send the downloaded file to the user for download
-        return send_file(video_file_path, as_attachment=True, download_name='downloaded_video.mp4')
-
-    except HTTPError as e:
-        return f"HTTP Error: {e.code} - {str(e)}"
+            return "No suitable video stream found. Try a different URL."
+        
+        # Temporary path to download the video to
+        download_path = os.path.join(os.getcwd(), "downloaded_video.mp4")
+        
+        # Download the video to the current working directory
+        stream.download(output_path=os.getcwd(), filename="downloaded_video.mp4")
+        
+        # Send the downloaded video to the client for download
+        return send_file(download_path, as_attachment=True, download_name="downloaded_video.mp4")
+    
     except Exception as e:
-        return f"Error: {str(e)}"
+        return f"An error occurred: {str(e)}"
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=8080)
