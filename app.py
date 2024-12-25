@@ -15,12 +15,17 @@ def download_video():
         if not video_url:
             return "Error: No URL provided", 400
         
-        yt = YouTube(video_url)
+        # Set custom headers for the request
+        yt = YouTube(video_url, on_progress_callback=progress_function, headers={"User-Agent": "Mozilla/5.0"})
+        
         stream = yt.streams.get_highest_resolution()
         file_path = stream.download()
         return send_file(file_path, as_attachment=True, download_name=f"{yt.title}.mp4")
     except Exception as e:
         return f"An error occurred: {e}", 500
+
+def progress_function(stream, chunk, bytes_remaining):
+    print(f"Downloading: {stream.title}, Remaining: {bytes_remaining / 1024 / 1024:.2f} MB")
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
