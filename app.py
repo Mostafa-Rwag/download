@@ -1,8 +1,8 @@
 from flask import Flask, request, jsonify, render_template, send_file
 from pytube import YouTube
 import os
-import requests
 import tempfile
+import requests
 
 app = Flask(__name__)
 
@@ -15,7 +15,7 @@ def download_video(video_url):
 
         # Create a temporary file for the video
         temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
-
+        
         # Download the video to the temporary file
         stream.download(output_path=os.path.dirname(temp_file.name), filename=temp_file.name.split(os.sep)[-1])
 
@@ -60,7 +60,7 @@ def download_and_put():
     # Make the PUT request
     put_message = make_put_request(put_url, put_data)
 
-    # Send the video file to the client
+    # Send the video file to the client for download
     return send_file(video_file, as_attachment=True, download_name=video_title + ".mp4")
 
 if __name__ == "__main__":
