@@ -68,29 +68,34 @@
             let put_data = JSON.parse(document.querySelector("input[name='put_data']").value);
 
             fetch("/download_video", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json"
-                },
-                body: JSON.stringify({
-                    video_url: video_url,
-                    put_url: put_url,
-                    put_data: put_data
-                })
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.download_message) {
-                    document.getElementById("videoMessage").innerHTML = `
-                        Download Message: ${data.download_message}<br>
-                        PUT Request Message: ${data.put_message}
-                    `;
-                }
-            })
-            .catch(error => {
-                document.getElementById("videoMessage").innerHTML = "Error: " + error;
-            });
-        });
+    method: "POST",
+    headers: {
+        "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+        video_url: video_url,
+        put_url: put_url,
+        put_data: put_data
+    })
+})
+.then(response => {
+    if (!response.ok) {
+        throw new Error(`HTTP error! Status: ${response.status}`);
+    }
+    return response.json();
+})
+.then(data => {
+    if (data.download_message) {
+        document.getElementById("videoMessage").innerHTML = `
+            Download Message: ${data.download_message}<br>
+            PUT Request Message: ${data.put_message}
+        `;
+    }
+})
+.catch(error => {
+    document.getElementById("videoMessage").innerHTML = "Error: " + error.message;
+});
+
     </script>
 
 </body>
