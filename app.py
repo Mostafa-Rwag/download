@@ -1,21 +1,33 @@
-from flask import Flask, render_template, request, send_file
+from flask import Flask, render_template_string, request, send_file
 import os
 from pytube import YouTube
-from pytube.request import get
 
 app = Flask(__name__)
 
-# Custom User-Agent for Pytube to prevent 403 errors
-def custom_get(url):
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
-    }
-    return get(url, headers=headers)
+# HTML content inline (no templates folder)
+index_html = '''
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Download YouTube Video</title>
+</head>
+<body>
+    <h1>Download YouTube Video</h1>
+    <form action="/download_video" method="POST">
+        <label for="video_url">Enter Video URL:</label><br>
+        <input type="text" id="video_url" name="video_url" placeholder="Enter YouTube URL" required><br><br>
+        <button type="submit">Download</button>
+    </form>
+</body>
+</html>
+'''
 
 # Route to render the index page (HTML form)
 @app.route('/')
 def index():
-    return render_template('index.html')
+    return render_template_string(index_html)
 
 # Route to handle video download
 @app.route('/download_video', methods=['POST'])
@@ -23,8 +35,7 @@ def download_video():
     video_url = request.form['video_url']
     
     try:
-        # Use custom_get to bypass potential 403 errors
-        yt = YouTube(video_url, on_progress_callback=custom_get)
+        yt = YouTube(video_url)
         stream = yt.streams.filter(progressive=True, file_extension='mp4').first()
         
         # Set download file name and path
