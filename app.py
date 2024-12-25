@@ -1,41 +1,97 @@
-import os
-import requests
-from flask import Flask, render_template, request, send_file
+from flask import Flask, request, render_template, jsonify
 from pytube import YouTube
-from pytube.request import get, put
+import requests
+import os
+from PIL import Image
+import torch
+import torchvision.transforms as transforms
+from torchvision import models
 
-# Create a custom function to override the default headers in requests
-def custom_requests_get(url, headers=None, *args, **kwargs):
-    if headers is None:
-        headers = {}
-    headers.update({"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"})
-    return get(url, headers=headers, *args, **kwargs)
+app = Flask(__name__)
 
-# Replace the default get method with our custom one
-YouTube._request = custom_requests_get
+# Load your AI model for skin disease detection
+model = models.resnet18(pretrained=True)
+model.eval()
 
-app = Flask(__name__, template_folder=".")
-
-@app.route("/")
-def home():
-    return render_template("index.html")
-
-@app.route("/download", methods=["POST"])
-def download_video():
+# Function to download video using pytube
+def download_video(url, output_path='./'):
     try:
-        video_url = request.form.get("url")
-        if not video_url:
-            return "Error: No URL provided", 400
-        
-        yt = YouTube(video_url)
-
+        yt = YouTube(url)
         stream = yt.streams.get_highest_resolution()
-        file_path = stream.download()
-
-        return send_file(file_path, as_attachment=True, download_name=f"{yt.title}.mp4")
+        print(f"Downloading {yt.title}...")
+        stream.download(output_path)
+        print(f"Download complete! Video saved to {output_path}")
+        return f"Video downloaded successfully: {yt.title}"
     except Exception as e:
-        return f"An error occurred: {e}", 500
+        print(f"An error occurred: {e}")
+        return f"Error occurred: {str(e)}"
+
+# Function to make a PUT request using requests
+def make_put_request(url, data):
+    try:
+        response = requests.put(url, data=data)
+        if response.status_code == 200:
+            return "PUT request successful"
+        else:
+            return f"Failed to make PUT request. Status code: {response.status_code}"
+    except Exception as e:
+        print(f"An error occurred during PUT request: {e}")
+        return f"Error during PUT request: {str(e)}"
+
+# Function to preprocess image and detect skin disease
+def detect_skin_disease(image_path):
+    image = Image.open(image_path).convert("RGB")
+    transform = transforms.Compose([
+        transforms.Resize(256),
+        transforms.CenterCrop(224),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+    ])
+    image = transform(image).unsqueeze(0)
+    with torch.no_grad():
+        output = model(image)
+    _, predicted_class = torch.max(output, 1)
+    class_names = ["Healthy", "Disease A", "Disease B"]
+    predicted_label = class_names[predicted_class.item()]
+    return predicted_label
+
+# Route to render the index page
+@app.route('/')
+def index():
+    return render_template('index.html')
+
+# Route to handle image upload and disease detection
+@app.route('/upload_image', methods=['POST'])
+def upload_image():
+    if 'image' not in request.files:
+        return jsonify({"error": "No image file provided"}), 400
+    
+    image = request.files['image']
+    image_path = os.path.join('./uploads', image.filename)
+    image.save(image_path)
+    disease_prediction = detect_skin_disease(image_path)
+    return jsonify({"predicted_disease": disease_prediction})
+
+# Route to handle video download and PUT request
+@app.route('/download_video', methods=['POST'])
+def download_and_put():
+    data = request.json
+    video_url = data.get('video_url')
+    put_url = data.get('put_url')
+    put_data = data.get('put_data')
+
+    if not video_url or not put_url or not put_data:
+        return jsonify({"error": "Missing required parameters"}), 400
+
+    download_message = download_video(video_url)
+    put_message = make_put_request(put_url, put_data)
+
+    return jsonify({
+        "download_message": download_message,
+        "put_message": put_message
+    })
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port)
+    if not os.path.exists('./uploads'):
+        os.makedirs('./uploads')
+    app.run(debug=True)
