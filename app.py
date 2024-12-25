@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, send_file
+from flask import Flask, render_template, request, send_file, render_template_string
 import os
 from pytube import YouTube
 import requests
@@ -9,7 +9,13 @@ app = Flask(__name__,
 
 @app.route('/')
 def index():
-    return render_template('index.html')  # index.html will be in the root directory
+    try:
+        # Directly render the 'index.html' from the root directory
+        with open("index.html", "r") as file:
+            content = file.read()
+        return render_template_string(content)  # Renders the content of the index.html file
+    except Exception as e:
+        return str(e)
 
 @app.route('/download_video', methods=['POST'])
 def download_video():
