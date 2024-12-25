@@ -2,11 +2,7 @@ import os
 from flask import Flask, render_template, request, send_file
 from pytube import YouTube
 
-app = Flask(__name__)
-
-# Folder where videos will be downloaded
-DOWNLOAD_FOLDER = "downloads"
-os.makedirs(DOWNLOAD_FOLDER, exist_ok=True)
+app = Flask(__name__, template_folder=".")
 
 @app.route("/")
 def home():
@@ -21,7 +17,7 @@ def download_video():
         
         yt = YouTube(video_url)
         stream = yt.streams.get_highest_resolution()
-        file_path = stream.download(output_path=DOWNLOAD_FOLDER)
+        file_path = stream.download()
         return send_file(file_path, as_attachment=True, download_name=f"{yt.title}.mp4")
     except Exception as e:
         return f"An error occurred: {e}", 500
