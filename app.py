@@ -1,35 +1,34 @@
-from flask import Flask, request, render_template, jsonify
+from flask import Flask, request, jsonify, render_template, send_file
 from pytube import YouTube
-import requests
 import os
-from PIL import Image
-import torch
-import torchvision.transforms as transforms
-from torchvision import models
+import requests
+import tempfile
 
 app = Flask(__name__)
 
-# Load your AI model for skin disease detection
-model = models.resnet18(pretrained=True)
-model.eval()
-
-# Function to download video using pytube
-def download_video(url, output_path='./'):
+# Function to download the video using pytube
+def download_video(video_url):
     try:
-        yt = YouTube(url)
+        yt = YouTube(video_url)
         stream = yt.streams.get_highest_resolution()
         print(f"Downloading {yt.title}...")
-        stream.download(output_path)
-        print(f"Download complete! Video saved to {output_path}")
-        return f"Video downloaded successfully: {yt.title}"
+
+        # Create a temporary file for the video
+        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
+
+        # Download the video to the temporary file
+        stream.download(output_path=os.path.dirname(temp_file.name), filename=temp_file.name.split(os.sep)[-1])
+
+        print(f"Video downloaded: {yt.title}")
+        return temp_file.name, yt.title
     except Exception as e:
         print(f"An error occurred: {e}")
-        return f"Error occurred: {str(e)}"
+        return None, f"Error occurred: {str(e)}"
 
-# Function to make a PUT request using requests
+# Function to make the PUT request
 def make_put_request(url, data):
     try:
-        response = requests.put(url, data=data)
+        response = requests.put(url, json=data)
         if response.status_code == 200:
             return "PUT request successful"
         else:
@@ -38,41 +37,10 @@ def make_put_request(url, data):
         print(f"An error occurred during PUT request: {e}")
         return f"Error during PUT request: {str(e)}"
 
-# Function to preprocess image and detect skin disease
-def detect_skin_disease(image_path):
-    image = Image.open(image_path).convert("RGB")
-    transform = transforms.Compose([
-        transforms.Resize(256),
-        transforms.CenterCrop(224),
-        transforms.ToTensor(),
-        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-    ])
-    image = transform(image).unsqueeze(0)
-    with torch.no_grad():
-        output = model(image)
-    _, predicted_class = torch.max(output, 1)
-    class_names = ["Healthy", "Disease A", "Disease B"]
-    predicted_label = class_names[predicted_class.item()]
-    return predicted_label
-
-# Route to render the index page
 @app.route('/')
 def index():
     return render_template('index.html')
 
-# Route to handle image upload and disease detection
-@app.route('/upload_image', methods=['POST'])
-def upload_image():
-    if 'image' not in request.files:
-        return jsonify({"error": "No image file provided"}), 400
-    
-    image = request.files['image']
-    image_path = os.path.join('./uploads', image.filename)
-    image.save(image_path)
-    disease_prediction = detect_skin_disease(image_path)
-    return jsonify({"predicted_disease": disease_prediction})
-
-# Route to handle video download and PUT request
 @app.route('/download_video', methods=['POST'])
 def download_and_put():
     data = request.json
@@ -83,15 +51,17 @@ def download_and_put():
     if not video_url or not put_url or not put_data:
         return jsonify({"error": "Missing required parameters"}), 400
 
-    download_message = download_video(video_url)
+    # Download the video
+    video_file, video_title = download_video(video_url)
+
+    if video_file is None:
+        return jsonify({"download_message": video_title, "put_message": "No PUT request made."}), 500
+
+    # Make the PUT request
     put_message = make_put_request(put_url, put_data)
 
-    return jsonify({
-        "download_message": download_message,
-        "put_message": put_message
-    })
+    # Send the video file to the client
+    return send_file(video_file, as_attachment=True, download_name=video_title + ".mp4")
 
 if __name__ == "__main__":
-    if not os.path.exists('./uploads'):
-        os.makedirs('./uploads')
     app.run(debug=True)
