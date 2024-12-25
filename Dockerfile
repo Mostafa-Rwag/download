@@ -8,7 +8,7 @@ WORKDIR /app
 COPY . /app
 
 # Install the required dependencies
-RUN pip install --no-cache-dir flask pytube
+RUN pip install --no-cache-dir flask pytube requests
 
 # Expose port 5000 for Flask
 EXPOSE 5000
