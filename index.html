@@ -3,14 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Download YouTube Video</title>
+    <title>YouTube Downloader</title>
 </head>
 <body>
-    <h1>Download YouTube Video</h1>
-    <form action="/download_video" method="POST">
-        <label for="video_url">Enter Video URL:</label><br>
-        <input type="text" id="video_url" name="video_url" placeholder="Enter YouTube URL" required><br><br>
+    <h1>YouTube Downloader</h1>
+    <form action="/" method="post">
+        <label for="url">YouTube URL:</label>
+        <input type="text" id="url" name="url" required>
         <button type="submit">Download</button>
     </form>
+    {% if download_link %}
+        <p>Download your video: <a href="{{ download_link }}" download>Click here</a></p>
+    {% endif %}
 </body>
 </html>
