@@ -8,7 +8,7 @@ WORKDIR /app
 COPY . /app
 
 # Install the required dependencies
-RUN pip install --no-cache-dir flask pytube requests Pillow
+RUN pip install --no-cache-dir flask pytube requests Pillow torch
 
 # Expose port 5000 for Flask
 EXPOSE 5000
