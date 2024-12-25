@@ -1,45 +1,61 @@
-from flask import Flask, render_template, request, send_file, redirect, url_for
+from flask import Flask, request, send_file, render_template_string
 import os
 import yt_dlp
 
 app = Flask(__name__)
-DOWNLOAD_FOLDER = "downloads"
-os.makedirs(DOWNLOAD_FOLDER, exist_ok=True)
 
-@app.route("/", methods=["GET", "POST"])
+# Define your HTML directly in the Flask file
+html_code = """
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YouTube Downloader</title>
+</head>
+<body>
+    <h1>Welcome to YouTube Downloader</h1>
+    <form action="/download" method="POST">
+        <label for="url">YouTube URL:</label>
+        <input type="text" id="url" name="url" placeholder="Enter YouTube URL" required>
+        <button type="submit">Download</button>
+    </form>
+</body>
+</html>
+"""
+
+@app.route("/")
 def index():
-    if request.method == "POST":
-        url = request.form.get("url")
-        if not url:
-            return "Invalid URL", 400
+    # Render the HTML from the string
+    return render_template_string(html_code)
 
-        # Generate a filename
-        output_file = os.path.join(DOWNLOAD_FOLDER, "video.mp4")
+@app.route("/download", methods=["POST"])
+def download():
+    # Get the YouTube URL from the form
+    youtube_url = request.form.get("url")
+    if not youtube_url:
+        return "Error: You must provide a YouTube URL.", 400
 
-        # Download video using yt-dlp
+    # Directory to store downloaded videos
+    output_dir = "downloads"
+    os.makedirs(output_dir, exist_ok=True)
+
+    try:
+        # Use yt-dlp to download the video
         ydl_opts = {
+            "outtmpl": os.path.join(output_dir, "%(title)s.%(ext)s"),
             "format": "bestvideo+bestaudio/best",
-            "outtmpl": output_file,
         }
 
-        try:
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                ydl.download([url])
-        except Exception as e:
-            return f"An error occurred: {str(e)}", 500
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(youtube_url, download=True)
+            video_file = ydl.prepare_filename(info)
 
-        # Serve the file
-        return render_template("index.html", download_link=url_for("download_file", filename="video.mp4"))
-    return render_template("index.html")
+        # Serve the file for download
+        return send_file(video_file, as_attachment=True)
 
-@app.route("/downloads/<filename>")
-def download_file(filename):
-    file_path = os.path.join(DOWNLOAD_FOLDER, filename)
-    if os.path.exists(file_path):
-        return send_file(file_path, as_attachment=True)
-    else:
-        return "File not found", 404
+    except Exception as e:
+        return f"Error during download: {str(e)}", 500
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
-
