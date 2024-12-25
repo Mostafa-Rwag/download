@@ -1,41 +1,32 @@
-from flask import Flask, render_template, request, send_file, render_template_string
+from flask import Flask, render_template, request, send_file
 import os
 from pytube import YouTube
-import requests
 
-app = Flask(__name__,
-            template_folder=os.getcwd(),  # Set the template folder to the current working directory
-            static_folder=os.getcwd())    # Set the static folder to the current working directory
+app = Flask(__name__)
 
+# Route to render the index page (HTML form)
 @app.route('/')
 def index():
-    try:
-        # Directly render the 'index.html' from the root directory
-        with open("index.html", "r") as file:
-            content = file.read()
-        return render_template_string(content)  # Renders the content of the index.html file
-    except Exception as e:
-        return str(e)
+    return render_template('index.html')
 
+# Route to handle video download
 @app.route('/download_video', methods=['POST'])
 def download_video():
     video_url = request.form['video_url']
-    put_url = request.form['put_url']
     
     try:
-        # Download video using pytube
+        # Download the video using Pytube
         yt = YouTube(video_url)
         stream = yt.streams.filter(progressive=True, file_extension='mp4').first()
-        video_file = stream.download(output_path=os.getcwd(), filename="downloaded_video.mp4")
-
-        # Upload video to a PUT URL if specified
-        if put_url:
-            with open(video_file, 'rb') as video:
-                response = requests.put(put_url, files={'file': video})
-            return f"Video uploaded to {put_url} with response: {response.status_code}"
-
-        # Send file to the client for download
-        return send_file(video_file, as_attachment=True, download_name="downloaded_video.mp4")
+        
+        # Set download file name and path
+        video_file_path = os.path.join(os.getcwd(), 'downloaded_video.mp4')
+        
+        # Download video to the specified file path
+        stream.download(output_path=os.getcwd(), filename='downloaded_video.mp4')
+        
+        # Send the downloaded file to the user for download
+        return send_file(video_file_path, as_attachment=True, download_name='downloaded_video.mp4')
 
     except Exception as e:
         return str(e)
