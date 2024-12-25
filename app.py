@@ -36,7 +36,8 @@ def download_video():
     
     try:
         yt = YouTube(video_url)
-        stream = yt.streams.filter(progressive=True, file_extension='mp4').first()
+        # Use a different filter to avoid restricted streams
+        stream = yt.streams.filter(file_extension='mp4').first()
         
         # Set download file name and path
         video_file_path = os.path.join(os.getcwd(), 'downloaded_video.mp4')
@@ -48,7 +49,7 @@ def download_video():
         return send_file(video_file_path, as_attachment=True, download_name='downloaded_video.mp4')
 
     except Exception as e:
-        return str(e)
+        return f"Error: {str(e)}"
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=8080)
