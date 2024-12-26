@@ -92,7 +92,7 @@
         .video-preview {
             margin-top: 20px;
             width: 100%;
-            height: auto;
+            height: 280px;
             display: none; /* Hidden until URL is valid */
         }
 
@@ -117,8 +117,12 @@
             </div>
             <button type="submit">Download Video</button>
         </form>
-        <iframe id="videoPreview" class="video-preview" controls="" style="display: block;" src="https://www.youtube.com/embed/tgbNymZ7vqY">
-</iframe>
+        
+        <!-- YouTube Video Preview embedded in iframe -->
+        <div id="videoPreviewContainer" class="video-preview">
+            <iframe id="videoPreviewIframe" width="100%" height="280" frameborder="0" allowfullscreen></iframe>
+        </div>
+        
         <div class="error" id="errorMessage"></div>
     </div>
 
@@ -185,24 +189,23 @@
         }
 
         async function showVideoPreview(url) {
-            const previewVideo = document.getElementById('videoPreview');
-            const videoSource = document.getElementById('videoSource');
+            const previewContainer = document.getElementById('videoPreviewContainer');
+            const iframe = document.getElementById('videoPreviewIframe');
 
             if (!url) {
-                previewVideo.style.display = 'none';
+                previewContainer.style.display = 'none';
                 return;
             }
 
             try {
-                // Set the video source to the YouTube URL or any preview video link
+                // Extract the YouTube video ID and generate the embed URL
                 const videoId = getYouTubeVideoId(url); // You can extract the video ID from the YouTube URL
-                const previewUrl = `https://www.youtube.com/watch?v=${videoId}`; // Replace with actual method to get a playable link
-                videoSource.src = previewUrl;
-                previewVideo.style.display = 'block'; // Show the video preview
-                previewVideo.load();
+                const embedUrl = `https://www.youtube.com/embed/${videoId}`; // YouTube embed URL
+                iframe.src = embedUrl;
+                previewContainer.style.display = 'block'; // Show the video preview
             } catch (error) {
                 console.error('Error fetching video preview:', error);
-                previewVideo.style.display = 'none'; // Hide if no preview available
+                previewContainer.style.display = 'none'; // Hide if no preview available
             }
         }
 
