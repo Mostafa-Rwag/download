@@ -96,6 +96,30 @@
             color: #007bff;
         }
 
+        .video-preview {
+            margin-top: 20px;
+            max-width: 100%;
+            display: none;
+        }
+
+        .quality-options {
+            margin-top: 20px;
+        }
+
+        .quality-option {
+            display: inline-block;
+            background-color: #007bff;
+            color: white;
+            padding: 8px 15px;
+            margin: 5px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        .quality-option:hover {
+            background-color: #0056b3;
+        }
+
         @media (max-width: 480px) {
             .container {
                 width: 90%;
@@ -110,26 +134,19 @@
             <div class="input-group">
                 <input type="url" id="videoUrl" placeholder="Enter YouTube URL" required>
             </div>
-            <div class="input-group">
-                <select id="qualitySelect" required>
-                    <option value="">Select Quality</option>
-                    <option value="144p">144p</option>
-                    <option value="280p">280p</option>
-                    <option value="480p">480p</option>
-                    <option value="680p">680p</option>
-                    <option value="920p">920p</option>
-                    <option value="1080p">1080p</option>
-                    <option value="2k">2k</option>
-                    <option value="4k">4k</option>
-                </select>
-            </div>
-            <button type="submit">Download Video</button>
+            <button type="submit">Generate Preview</button>
         </form>
-        
-        <!-- Loading indicator -->
-        <div id="loadingMessage" class="loading">Loading formats...</div>
-        
+
+        <div class="loading" id="loadingMessage">Loading video...</div>
         <div class="error" id="errorMessage"></div>
+
+        <!-- Video preview section -->
+        <div id="videoPreviewContainer" class="video-preview">
+            <video id="videoPreview" controls width="100%"></video>
+        </div>
+
+        <!-- Quality options displayed after video is fetched -->
+        <div id="qualityOptionsContainer" class="quality-options"></div>
     </div>
 
     <script>
@@ -137,46 +154,79 @@
             event.preventDefault();
 
             const url = document.getElementById('videoUrl').value;
-            const quality = document.getElementById('qualitySelect').value;
 
-            if (!url || !quality) {
-                document.getElementById('errorMessage').textContent = 'Please provide a valid URL and select a quality.';
+            if (!url) {
+                document.getElementById('errorMessage').textContent = 'Please provide a valid URL.';
                 return;
             }
 
             try {
-                // Show loading indicator while fetching the video
+                // Show loading indicator
+                document.getElementById('loadingMessage').style.display = 'block';
+                document.getElementById('videoPreviewContainer').style.display = 'none';
+                document.getElementById('qualityOptionsContainer').innerHTML = ''; // Clear previous options
+                document.getElementById('errorMessage').textContent = '';
+
+                // Fetch video preview and formats
+                const response = await fetch(`/get-video-info?url=${encodeURIComponent(url)}`);
+                const data = await response.json();
+
+                // Hide loading message
+                document.getElementById('loadingMessage').style.display = 'none';
+
+                if (data.error) {
+                    document.getElementById('errorMessage').textContent = data.error;
+                    return;
+                }
+
+                // Display video preview
+                const videoElement = document.getElementById('videoPreview');
+                videoElement.src = data.previewUrl;
+                document.getElementById('videoPreviewContainer').style.display = 'block';
+
+                // Display available quality options
+                const qualityOptionsContainer = document.getElementById('qualityOptionsContainer');
+                data.formats.forEach(format => {
+                    const option = document.createElement('div');
+                    option.classList.add('quality-option');
+                    option.textContent = format.quality;
+                    option.onclick = () => downloadVideo(url, format);
+                    qualityOptionsContainer.appendChild(option);
+                });
+            } catch (error) {
+                document.getElementById('loadingMessage').style.display = 'none';
+                document.getElementById('errorMessage').textContent = 'Error occurred while fetching video info.';
+                console.error(error);
+            }
+        });
+
+        // Function to trigger video download
+        async function downloadVideo(url, format) {
+            try {
+                // Show loading indicator for download
                 document.getElementById('loadingMessage').style.display = 'block';
 
-                const response = await fetch(`/download?url=${encodeURIComponent(url)}&quality=${encodeURIComponent(quality)}&audio=false`);
+                const response = await fetch(`/download?url=${encodeURIComponent(url)}&quality=${encodeURIComponent(format.quality)}&audio=false`);
                 
                 if (response.ok) {
-                    // Hide loading message and trigger the download
-                    document.getElementById('loadingMessage').style.display = 'none';
                     const blob = await response.blob();
                     const link = document.createElement('a');
                     link.href = URL.createObjectURL(blob);
-                    link.download = 'video.mp4';
+                    link.download = `video_${format.quality}.mp4`;
                     link.click();
                 } else {
                     const data = await response.json();
                     document.getElementById('errorMessage').textContent = data.error || 'Error occurred during download.';
                 }
             } catch (error) {
+                document.getElementById('loadingMessage').style.display = 'none';
                 document.getElementById('errorMessage').textContent = 'Error occurred during download.';
                 console.error(error);
             } finally {
-                // Hide the loading message in case of any error
+                // Hide loading message
                 document.getElementById('loadingMessage').style.display = 'none';
             }
-        });
-
-        // Fetch formats when the URL input is filled
-        document.getElementById('videoUrl').addEventListener('input', function () {
-            document.getElementById('loadingMessage').style.display = 'block';
-            // After fetching the formats, we can enable the selection
-            document.getElementById('loadingMessage').style.display = 'none';
-        });
+        }
     </script>
 </body>
 </html>
