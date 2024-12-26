@@ -1,24 +1,24 @@
-# Use the official Node.js image
+# Use a Node.js base image
 FROM node:18-slim
 
 # Set the working directory
 WORKDIR /app
 
-# Copy package.json and package-lock.json
-COPY package*.json ./
+# Install dependencies: ffmpeg and yt-dlp
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends ffmpeg curl && \
+    curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp && \
+    chmod a+rx /usr/local/bin/yt-dlp && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Install dependencies
+# Copy package.json and install dependencies
+COPY package*.json ./
 RUN npm install
 
-# Install ffmpeg and yt-dlp
-RUN apt-get update && apt-get install -y ffmpeg && \
-    curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp && \
-    chmod a+rx /usr/local/bin/yt-dlp
-
-# Copy application files
+# Copy application code
 COPY . .
 
-# Expose the port the app runs on
+# Expose port 3000
 EXPOSE 3000
 
 # Start the application
