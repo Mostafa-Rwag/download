@@ -53,19 +53,32 @@
             outline: none;
         }
 
-        select {
-            width: 100%;
-            padding: 12px;
-            font-size: 16px;
-            border: 2px solid #ccc;
-            border-radius: 5px;
-            margin-top: 10px;
-            transition: border-color 0.3s ease;
+        .quality-buttons {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 10px;
+            margin-top: 20px;
         }
 
-        select:focus {
-            border-color: #007bff;
-            outline: none;
+        .quality-button {
+            background-color: #007bff;
+            color: white;
+            padding: 10px 20px;
+            font-size: 16px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+
+        .quality-button:hover {
+            background-color: #0056b3;
+        }
+
+        .quality-button.disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
         }
 
         button {
@@ -103,10 +116,8 @@
             <div class="input-group">
                 <input type="url" id="videoUrl" placeholder="Enter YouTube URL" required>
             </div>
-            <div class="input-group">
-                <select id="qualitySelect" required>
-                    <option value="">Select Quality</option>
-                </select>
+            <div class="quality-buttons" id="qualityButtons">
+                <!-- Quality options will be populated here as buttons -->
             </div>
             <button type="submit">Download Video</button>
         </form>
@@ -118,15 +129,17 @@
             event.preventDefault();
 
             const url = document.getElementById('videoUrl').value;
-            const quality = document.getElementById('qualitySelect').value;
+            const quality = document.querySelector('.quality-button.selected');
 
             if (!url || !quality) {
                 document.getElementById('errorMessage').textContent = 'Please provide a valid URL and select a quality.';
                 return;
             }
 
+            const selectedQuality = quality.dataset.value;
+
             try {
-                const response = await fetch(`/download?url=${encodeURIComponent(url)}&quality=${encodeURIComponent(quality)}`);
+                const response = await fetch(`/download?url=${encodeURIComponent(url)}&quality=${encodeURIComponent(selectedQuality)}`);
                 if (response.ok) {
                     // Triggering the download of the video
                     const blob = await response.blob();
@@ -158,14 +171,28 @@
                 });
 
                 const data = await response.json();
-                const qualitySelect = document.getElementById('qualitySelect');
-                qualitySelect.innerHTML = '<option value="">Select Quality</option>'; // Clear previous options
+                const qualityButtonsContainer = document.getElementById('qualityButtons');
+                qualityButtonsContainer.innerHTML = ''; // Clear previous options
 
-                data.formats.forEach(format => {
-                    const option = document.createElement('option');
-                    option.value = format.code;
-                    option.textContent = format.description;
-                    qualitySelect.appendChild(option);
+                const availableQualities = ['144', '280', '480', '640', '720', '1080', '2k', '4k'];
+                availableQualities.forEach(quality => {
+                    const format = data.formats.find(f => f.description.includes(quality));
+                    const button = document.createElement('button');
+                    button.classList.add('quality-button');
+                    button.dataset.value = format ? format.code : '';
+                    button.textContent = format ? `${quality}p` : `${quality}p (Not Available)`;
+                    button.disabled = !format; // Disable if quality is not available
+                    button.classList.toggle('disabled', !format);
+
+                    // Click handler to mark the button as selected
+                    button.addEventListener('click', () => {
+                        if (!button.disabled) {
+                            document.querySelectorAll('.quality-button').forEach(b => b.classList.remove('selected'));
+                            button.classList.add('selected');
+                        }
+                    });
+
+                    qualityButtonsContainer.appendChild(button);
                 });
             } catch (error) {
                 console.error('Error fetching formats:', error);
