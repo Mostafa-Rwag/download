@@ -49,9 +49,11 @@
         .error {
             color: red;
         }
-        video {
+        iframe {
             width: 100%;
             max-width: 600px;
+            height: 350px;
+            border: none;
             margin-top: 20px;
         }
     </style>
@@ -61,7 +63,8 @@
         <h1>Video Downloader</h1>
         <form id="downloadForm">
             <input type="url" id="videoUrl" placeholder="Enter YouTube URL" required><br><br>
-            <video id="videoPreview" controls></video><br><br>
+            <!-- Embed YouTube preview here -->
+            <iframe id="videoPreview" src="" title="YouTube video preview"></iframe><br><br>
             <select id="qualitySelect" required>
                 <option value="">Select Quality</option>
             </select><br><br>
@@ -146,8 +149,18 @@
 
             // Check if the URL is a valid YouTube URL and update the preview
             if (url && url.includes('youtube.com')) {
-                videoPreview.src = `https://www.youtube.com/watch?v=${url.split('v=')[1]}`;
+                // Extract the video ID from the URL
+                const videoId = url.split('v=')[1]?.split('&')[0]; // Get the video ID after "v="
+                
+                if (videoId) {
+                    console.log("Video ID:", videoId); // Debugging: log the video ID
+                    videoPreview.src = `https://www.youtube.com/embed/${videoId}`;
+                } else {
+                    console.error("Invalid YouTube URL - Video ID not found");
+                    videoPreview.src = ''; // Clear the preview if the video ID is not found
+                }
             } else {
+                console.log("Invalid YouTube URL"); // Debugging message for invalid URL
                 videoPreview.src = ''; // Clear the preview if the URL is not valid
             }
         });
