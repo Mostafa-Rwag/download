@@ -142,8 +142,9 @@ app.get('/', (req, res) => {
         </script>
     </body>
     </html>
-    `);
+    `);  // Ensure the backtick is properly closed here
 });
+
 
 // Route to fetch available video formats
 app.post('/get-formats', (req, res) => {
