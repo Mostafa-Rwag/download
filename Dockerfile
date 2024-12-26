@@ -24,7 +24,7 @@ RUN npm install
 
 # Install Node.js dependencies
 RUN npm install
-
+Run apt install python3
 # Expose port 3000
 EXPOSE 3000
 
