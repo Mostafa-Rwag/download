@@ -7,6 +7,11 @@ const PORT = 3000;
 // Serve static files from the 'downloads' folder
 app.use('/downloads', express.static(path.join(__dirname, 'downloads')));
 
+// Serve the index.html file when accessing the root route
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'index.html'));
+});
+
 // Endpoint for downloading the video
 app.get('/download', (req, res) => {
     const videoUrl = req.query.url;
