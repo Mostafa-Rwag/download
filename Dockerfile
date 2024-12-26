@@ -1,17 +1,22 @@
-# Use an official Python runtime as a parent image
-FROM python:3.9-slim
+# Use a lightweight Node.js image
+FROM node:18-slim
 
-# Set the working directory in the container
+# Install yt-dlp and ffmpeg
+RUN apt-get update && apt-get install -y ffmpeg && \
+    curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp && \
+    chmod a+rx /usr/local/bin/yt-dlp
+
+# Set working directory
 WORKDIR /app
 
-# Copy the current directory contents into the container at /app
-COPY . /app
+# Copy application files
+COPY . .
 
-# Install the required dependencies
-RUN pip install --no-cache-dir flask yt-dlp gunicorn
+# Install Node.js dependencies
+RUN npm install express
 
-# Expose port 5000 for Flask
-EXPOSE 5000
+# Expose port 3000
+EXPOSE 3000
 
-# Define the command to run the app
-CMD ["python", "app.py"]
+# Command to start the server
+CMD ["node", "server.js"]
