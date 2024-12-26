@@ -109,7 +109,7 @@ app.get('/', (req, res) => {
                     URL.revokeObjectURL(downloadUrl);
                     a.remove();
                 } catch (error) {
-                    document.getElementById('errorMessage').textContent = 'Error downloading the video.';
+                    document.getElementById('errorMessage').textContent = `Error: ${error.message}`;
                     console.error(error);
                 }
             });
@@ -188,11 +188,13 @@ app.post('/download', (req, res) => {
 
     ytDlp.stderr.on('data', (data) => {
         console.error(`stderr: ${data}`);
+        res.status(500).send('Error during video download: ' + data);
     });
 
     ytDlp.on('close', (code) => {
         if (code !== 0) {
             console.error(`yt-dlp process exited with code ${code}`);
+            res.status(500).send('Error: Video download process failed.');
         }
     });
 });
