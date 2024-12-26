@@ -53,32 +53,19 @@
             outline: none;
         }
 
-        .quality-buttons {
-            display: flex;
-            flex-wrap: wrap;
-            justify-content: center;
-            gap: 10px;
-            margin-top: 20px;
-        }
-
-        .quality-button {
-            background-color: #007bff;
-            color: white;
-            padding: 10px 20px;
+        select {
+            width: 100%;
+            padding: 12px;
             font-size: 16px;
-            border: none;
+            border: 2px solid #ccc;
             border-radius: 5px;
-            cursor: pointer;
-            transition: background-color 0.3s ease;
+            margin-top: 10px;
+            transition: border-color 0.3s ease;
         }
 
-        .quality-button:hover {
-            background-color: #0056b3;
-        }
-
-        .quality-button.disabled {
-            background-color: #ccc;
-            cursor: not-allowed;
+        select:focus {
+            border-color: #007bff;
+            outline: none;
         }
 
         button {
@@ -102,6 +89,13 @@
             margin-top: 15px;
         }
 
+        .video-preview {
+            margin-top: 20px;
+            width: 100%;
+            height: auto;
+            display: none; /* Hidden until URL is valid */
+        }
+
         @media (max-width: 480px) {
             .container {
                 width: 90%;
@@ -116,11 +110,17 @@
             <div class="input-group">
                 <input type="url" id="videoUrl" placeholder="Enter YouTube URL" required>
             </div>
-            <div class="quality-buttons" id="qualityButtons">
-                <!-- Quality options will be populated here as buttons -->
+            <div class="input-group">
+                <select id="qualitySelect" required>
+                    <option value="">Select Quality</option>
+                </select>
             </div>
             <button type="submit">Download Video</button>
         </form>
+        <video id="videoPreview" class="video-preview" controls>
+            <source id="videoSource" type="video/mp4">
+            Your browser does not support the video tag.
+        </video>
         <div class="error" id="errorMessage"></div>
     </div>
 
@@ -129,17 +129,15 @@
             event.preventDefault();
 
             const url = document.getElementById('videoUrl').value;
-            const quality = document.querySelector('.quality-button.selected');
+            const quality = document.getElementById('qualitySelect').value;
 
             if (!url || !quality) {
                 document.getElementById('errorMessage').textContent = 'Please provide a valid URL and select a quality.';
                 return;
             }
 
-            const selectedQuality = quality.dataset.value;
-
             try {
-                const response = await fetch(`/download?url=${encodeURIComponent(url)}&quality=${encodeURIComponent(selectedQuality)}`);
+                const response = await fetch(`/download?url=${encodeURIComponent(url)}&quality=${encodeURIComponent(quality)}`);
                 if (response.ok) {
                     // Triggering the download of the video
                     const blob = await response.blob();
@@ -171,32 +169,50 @@
                 });
 
                 const data = await response.json();
-                const qualityButtonsContainer = document.getElementById('qualityButtons');
-                qualityButtonsContainer.innerHTML = ''; // Clear previous options
+                const qualitySelect = document.getElementById('qualitySelect');
+                qualitySelect.innerHTML = '<option value="">Select Quality</option>'; // Clear previous options
 
-                const availableQualities = ['144', '280', '480', '640', '720', '1080', '2k', '4k'];
-                availableQualities.forEach(quality => {
-                    const format = data.formats.find(f => f.description.includes(quality));
-                    const button = document.createElement('button');
-                    button.classList.add('quality-button');
-                    button.dataset.value = format ? format.code : '';
-                    button.textContent = format ? `${quality}p` : `${quality}p (Not Available)`;
-                    button.disabled = !format; // Disable if quality is not available
-                    button.classList.toggle('disabled', !format);
-
-                    // Click handler to mark the button as selected
-                    button.addEventListener('click', () => {
-                        if (!button.disabled) {
-                            document.querySelectorAll('.quality-button').forEach(b => b.classList.remove('selected'));
-                            button.classList.add('selected');
-                        }
-                    });
-
-                    qualityButtonsContainer.appendChild(button);
+                data.formats.forEach(format => {
+                    const option = document.createElement('option');
+                    option.value = format.code;
+                    option.textContent = format.description;
+                    qualitySelect.appendChild(option);
                 });
+
+                // Enable video preview if URL and formats are valid
+                showVideoPreview(url);
             } catch (error) {
                 console.error('Error fetching formats:', error);
             }
+        }
+
+        async function showVideoPreview(url) {
+            const previewVideo = document.getElementById('videoPreview');
+            const videoSource = document.getElementById('videoSource');
+
+            if (!url) {
+                previewVideo.style.display = 'none';
+                return;
+            }
+
+            try {
+                // Set the video source to the YouTube URL or any preview video link
+                const videoId = getYouTubeVideoId(url); // You can extract the video ID from the YouTube URL
+                const previewUrl = `https://www.youtube.com/watch?v=${videoId}`; // Replace with actual method to get a playable link
+                videoSource.src = previewUrl;
+                previewVideo.style.display = 'block'; // Show the video preview
+                previewVideo.load();
+            } catch (error) {
+                console.error('Error fetching video preview:', error);
+                previewVideo.style.display = 'none'; // Hide if no preview available
+            }
+        }
+
+        // Utility to extract the YouTube video ID from the URL
+        function getYouTubeVideoId(url) {
+            const regex = /(?:https?:\/\/(?:www\.)?youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=))([^"&?\/\s]{11})/;
+            const match = url.match(regex);
+            return match ? match[1] : null;
         }
 
         // Fetch formats when the URL input is filled
