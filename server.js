@@ -7,9 +7,9 @@ const port = 3000;
 // Middleware to parse JSON bodies
 app.use(express.json());
 
-// Serve the HTML page from the server
-app.use(express.static(path.join(__dirname, 'index.html'));
-
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'index.html'));
+});
 // Route to fetch available video formats
 app.post('/get-formats', (req, res) => {
     const { url } = req.body;
