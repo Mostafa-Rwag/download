@@ -1,203 +1,109 @@
 const express = require('express');
-const { exec } = require('child_process');
+const { spawn } = require('child_process');
+const path = require('path');
+
 const app = express();
 const port = 3000;
 
 // Middleware to parse JSON bodies
 app.use(express.json());
 
-// Serve the HTML page from the server
+// Serve a basic HTML page for selecting video quality
 app.get('/', (req, res) => {
-    res.send(`
+  res.send(`
     <!DOCTYPE html>
     <html lang="en">
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>YouTube Video Downloader</title>
+        <title>YouTube Downloader</title>
         <style>
-            body {
-                font-family: Arial, sans-serif;
-                background-color: #f4f4f9;
-                margin: 0;
-                padding: 0;
-                display: flex;
-                justify-content: center;
-                align-items: center;
-                height: 100vh;
-                color: #333;
-            }
-            .container {
-                background: #fff;
-                padding: 20px;
-                border-radius: 8px;
-                box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-                text-align: center;
-                max-width: 400px;
-                width: 100%;
-            }
-            h1 {
-                color: #555;
-                margin-bottom: 20px;
-            }
-            input, select, button {
-                width: 100%;
-                padding: 10px;
-                margin: 10px 0;
-                border: 1px solid #ddd;
-                border-radius: 5px;
-                font-size: 16px;
-            }
-            button {
-                background-color: #007bff;
-                color: #fff;
-                border: none;
-                cursor: pointer;
-            }
-            button:hover {
-                background-color: #0056b3;
-            }
-            .error {
-                color: red;
-                margin-top: 10px;
-            }
+          body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            padding: 20px;
+          }
+          label {
+            font-weight: bold;
+          }
+          .form-group {
+            margin-bottom: 15px;
+          }
+          button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            cursor: pointer;
+            font-size: 16px;
+          }
+          button:hover {
+            background-color: #45a049;
+          }
         </style>
     </head>
     <body>
-        <div class="container">
-            <h1>YouTube Video Downloader</h1>
-            <form id="downloadForm">
-                <input type="text" id="url" name="url" placeholder="Enter YouTube Video URL" required>
-                <select id="quality" name="quality">
+        <h1>YouTube Video Downloader</h1>
+        <form id="downloadForm">
+            <div class="form-group">
+                <label for="url">YouTube Video URL:</label><br>
+                <input type="text" id="url" name="url" required style="width: 300px; padding: 5px;">
+            </div>
+            <div class="form-group">
+                <label for="quality">Quality:</label><br>
+                <select id="quality" name="quality" required style="padding: 5px;">
                     <option value="best">Best Quality</option>
+                    <option value="worst">Worst Quality</option>
+                    <option value="134">MP4 (360p)</option>
+                    <option value="136">MP4 (720p)</option>
+                    <option value="137">MP4 (1080p)</option>
                 </select>
-                <button type="submit">Download Video</button>
-                <p class="error" id="errorMessage"></p>
-            </form>
-        </div>
-
+            </div>
+            <button type="submit">Download</button>
+        </form>
         <script>
-            document.getElementById('downloadForm').addEventListener('submit', async (event) => {
+            document.getElementById('downloadForm').addEventListener('submit', function (event) {
                 event.preventDefault();
-
                 const url = document.getElementById('url').value;
                 const quality = document.getElementById('quality').value;
-
-                if (!url) {
-                    document.getElementById('errorMessage').textContent = 'Please enter a URL.';
-                    return;
-                }
-
-                try {
-                    const response = await fetch('/download', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ url, quality }),
-                    });
-
-                    if (!response.ok) {
-                        throw new Error('Failed to fetch video.');
-                    }
-
-                    const blob = await response.blob();
-                    const downloadUrl = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = downloadUrl;
-                    a.download = 'video.mp4';
-                    document.body.appendChild(a);
-                    a.click();
-                    URL.revokeObjectURL(downloadUrl);
-                    a.remove();
-                } catch (error) {
-                    document.getElementById('errorMessage').textContent = 'Error downloading the video.';
-                    console.error(error);
-                }
-            });
-
-            async function fetchFormats(url) {
-                const response = await fetch('/get-formats', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ url }),
-                });
-
-                if (response.ok) {
-                    const { formats } = await response.json();
-                    const qualityDropdown = document.getElementById('quality');
-                    formats.forEach(format => {
-                        const option = document.createElement('option');
-                        option.value = format.code;
-                        option.textContent = format.description;
-                        qualityDropdown.appendChild(option);
-                    });
-                }
-            }
-
-            document.getElementById('url').addEventListener('change', (event) => {
-                const url = event.target.value;
-                if (url) {
-                    fetchFormats(url);
-                }
+                window.location.href = \`/download?url=\${encodeURIComponent(url)}&quality=\${encodeURIComponent(quality)}\`;
             });
         </script>
     </body>
     </html>
-    `);
+  `);
 });
 
-// Route to fetch available video formats
-app.post('/get-formats', (req, res) => {
-    const { url } = req.body;
+// Route to handle downloading the video
+app.get('/download', (req, res) => {
+  const { url, quality } = req.query;
 
-    if (!url) {
-        return res.status(400).json({ error: 'URL is required' });
+  if (!url || !quality) {
+    return res.status(400).send('Missing URL or quality.');
+  }
+
+  // Set headers for file download
+  res.setHeader('Content-Disposition', 'attachment; filename="video.mp4"');
+  res.setHeader('Content-Type', 'video/mp4');
+
+  // Spawn the yt-dlp process
+  const ytDlp = spawn('yt-dlp', ['-f', quality, '-o', '-', url]);
+
+  ytDlp.stdout.pipe(res); // Stream the video to the client
+
+  ytDlp.stderr.on('data', (data) => {
+    console.error(`stderr: ${data}`);
+  });
+
+  ytDlp.on('close', (code) => {
+    if (code !== 0) {
+      console.error(`yt-dlp process exited with code ${code}`);
+      res.status(500).send('Failed to download the video.');
     }
-
-    exec(`yt-dlp -F ${url}`, (err, stdout, stderr) => {
-        if (err) {
-            console.error(stderr);
-            return res.status(500).json({ error: 'Failed to fetch formats' });
-        }
-
-        const formats = stdout
-            .split('\n')
-            .filter(line => /^\d/.test(line))
-            .map(line => {
-                const [code, ...rest] = line.trim().split(/\s{2,}/);
-                return { code, description: rest.join(' ') };
-            });
-
-        res.json({ formats });
-    });
-});
-
-// Route to download the selected video
-app.post('/download', (req, res) => {
-    const { url, quality } = req.body;
-
-    if (!url || !quality) {
-        return res.status(400).send('URL and quality are required.');
-    }
-
-    const ytDlp = exec(`yt-dlp -f ${quality} -o - ${url}`, { maxBuffer: 1024 * 500 });
-
-    res.setHeader('Content-Disposition', 'attachment; filename="video.mp4"');
-    res.setHeader('Content-Type', 'video/mp4');
-
-    ytDlp.stdout.pipe(res);
-
-    ytDlp.stderr.on('data', (data) => {
-        console.error(`stderr: ${data}`);
-    });
-
-    ytDlp.on('close', (code) => {
-        if (code !== 0) {
-            console.error(`yt-dlp process exited with code ${code}`);
-        }
-    });
+  });
 });
 
 // Start the server
 app.listen(port, () => {
-    console.log(`Server running at http://localhost:${port}`);
+  console.log(`Server running at http://localhost:${port}`);
 });
