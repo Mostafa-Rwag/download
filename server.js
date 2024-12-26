@@ -151,12 +151,16 @@
             if (url && url.includes('youtube.com')) {
                 // Extract the video ID from the URL
                 const videoId = url.split('v=')[1]?.split('&')[0]; // Get the video ID after "v="
+                
                 if (videoId) {
+                    console.log("Video ID:", videoId); // Debugging: log the video ID
                     videoPreview.src = `https://www.youtube.com/embed/${videoId}`;
                 } else {
+                    console.error("Invalid YouTube URL - Video ID not found");
                     videoPreview.src = ''; // Clear the preview if the video ID is not found
                 }
             } else {
+                console.log("Invalid YouTube URL"); // Debugging message for invalid URL
                 videoPreview.src = ''; // Clear the preview if the URL is not valid
             }
         });
