@@ -1,6 +1,6 @@
 # Use a lightweight Node.js image
 FROM node:18-slim
-
+RUN npm init
 # Set environment variables for non-interactive installation
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -14,7 +14,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Install yt-dlp
 RUN curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp && \
     chmod a+rx /usr/local/bin/yt-dlp
-RUN npm init
+
 # Set working directory
 WORKDIR /app
 
