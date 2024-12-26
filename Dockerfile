@@ -4,16 +4,21 @@ FROM node:18-slim
 # Set the working directory
 WORKDIR /app
 
-# Copy package.json and package-lock.json into the working directory
+# Copy package.json and package-lock.json
 COPY package*.json ./
 
 # Install dependencies
 RUN npm install
 
-# Copy the rest of the application files
+# Install ffmpeg and yt-dlp
+RUN apt-get update && apt-get install -y ffmpeg && \
+    curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp && \
+    chmod a+rx /usr/local/bin/yt-dlp
+
+# Copy application files
 COPY . .
 
-# Expose the application port
+# Expose the port the app runs on
 EXPOSE 3000
 
 # Start the application
