@@ -89,13 +89,6 @@
             margin-top: 15px;
         }
 
-        .video-preview {
-            margin-top: 20px;
-            width: 100%;
-            height: 280px;
-            display: none; /* Hidden until URL is valid */
-        }
-
         .loading {
             display: none;
             font-size: 16px;
@@ -120,15 +113,18 @@
             <div class="input-group">
                 <select id="qualitySelect" required>
                     <option value="">Select Quality</option>
+                    <option value="144p">144p</option>
+                    <option value="280p">280p</option>
+                    <option value="480p">480p</option>
+                    <option value="680p">680p</option>
+                    <option value="920p">920p</option>
+                    <option value="1080p">1080p</option>
+                    <option value="2k">2k</option>
+                    <option value="4k">4k</option>
                 </select>
             </div>
             <button type="submit">Download Video</button>
         </form>
-        
-        <!-- YouTube Video Preview embedded in iframe -->
-        <div id="videoPreviewContainer" class="video-preview">
-            <iframe id="videoPreviewIframe" width="100%" height="280" frameborder="0" allowfullscreen></iframe>
-        </div>
         
         <!-- Loading indicator -->
         <div id="loadingMessage" class="loading">Loading formats...</div>
@@ -152,7 +148,7 @@
                 // Show loading indicator while fetching the video
                 document.getElementById('loadingMessage').style.display = 'block';
 
-                const response = await fetch(`/download?url=${encodeURIComponent(url)}&quality=${encodeURIComponent(quality)}`);
+                const response = await fetch(`/download?url=${encodeURIComponent(url)}&quality=${encodeURIComponent(quality)}&audio=false`);
                 
                 if (response.ok) {
                     // Hide loading message and trigger the download
@@ -175,72 +171,12 @@
             }
         });
 
-        async function fetchFormats() {
-            const url = document.getElementById('videoUrl').value;
-            if (!url) return;
-
-            try {
-                // Show loading message while fetching formats
-                document.getElementById('loadingMessage').style.display = 'block';
-
-                const response = await fetch('/get-formats', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ url })
-                });
-
-                const data = await response.json();
-                const qualitySelect = document.getElementById('qualitySelect');
-                qualitySelect.innerHTML = '<option value="">Select Quality</option>'; // Clear previous options
-
-                data.formats.forEach(format => {
-                    const option = document.createElement('option');
-                    option.value = format.code;
-                    option.textContent = format.description;
-                    qualitySelect.appendChild(option);
-                });
-
-                // Enable video preview if URL and formats are valid
-                showVideoPreview(url);
-            } catch (error) {
-                console.error('Error fetching formats:', error);
-            } finally {
-                document.getElementById('loadingMessage').style.display = 'none'; // Hide loading message after fetching
-            }
-        }
-
-        async function showVideoPreview(url) {
-            const previewContainer = document.getElementById('videoPreviewContainer');
-            const iframe = document.getElementById('videoPreviewIframe');
-
-            if (!url) {
-                previewContainer.style.display = 'none';
-                return;
-            }
-
-            try {
-                // Extract the YouTube video ID and generate the embed URL
-                const videoId = getYouTubeVideoId(url); // You can extract the video ID from the YouTube URL
-                const embedUrl = `https://www.youtube.com/embed/${videoId}`; // YouTube embed URL
-                iframe.src = embedUrl;
-                previewContainer.style.display = 'block'; // Show the video preview
-            } catch (error) {
-                console.error('Error fetching video preview:', error);
-                previewContainer.style.display = 'none'; // Hide if no preview available
-            }
-        }
-
-        // Utility to extract the YouTube video ID from the URL
-        function getYouTubeVideoId(url) {
-            const regex = /(?:https?:\/\/(?:www\.)?youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=))([^"&?\/\s]{11})/;
-            const match = url.match(regex);
-            return match ? match[1] : null;
-        }
-
         // Fetch formats when the URL input is filled
-        document.getElementById('videoUrl').addEventListener('input', fetchFormats);
+        document.getElementById('videoUrl').addEventListener('input', function () {
+            document.getElementById('loadingMessage').style.display = 'block';
+            // After fetching the formats, we can enable the selection
+            document.getElementById('loadingMessage').style.display = 'none';
+        });
     </script>
 </body>
 </html>
