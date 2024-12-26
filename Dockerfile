@@ -20,7 +20,7 @@ WORKDIR /app
 
 # Copy application files
 COPY . .
-
+COPY package*.json ./
 # Install Node.js dependencies
 RUN npm install
 
@@ -29,3 +29,25 @@ EXPOSE 3000
 
 # Command to start the server
 CMD ["node", "server.js"]
+
+# Use a lightweight Node.js image
+FROM node:18-slim
+
+# Set working directory
+WORKDIR /app
+
+# Copy package.json and package-lock.json first (for caching)
+COPY package*.json ./
+
+# Install dependencies
+RUN npm install
+
+# Copy remaining app files
+COPY . .
+
+# Expose port
+EXPOSE 3000
+
+# Run the application
+CMD ["node", "server.js"]
+
