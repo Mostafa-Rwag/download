@@ -5,56 +5,94 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Video Downloader</title>
     <style>
-        body {
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
             font-family: Arial, sans-serif;
+        }
+
+        body {
+            background-color: #f0f0f0;
             display: flex;
             justify-content: center;
             align-items: center;
             height: 100vh;
-            margin: 0;
-            background-color: #f4f4f9;
         }
+
         .container {
-            text-align: center;
-            padding: 30px;
             background-color: white;
-            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
-            border-radius: 10px;
+            padding: 40px;
+            box-shadow: 0px 10px 30px rgba(0, 0, 0, 0.1);
+            border-radius: 8px;
+            width: 400px;
+            text-align: center;
         }
-        input[type="url"] {
-            padding: 10px;
-            width: 300px;
-            margin-bottom: 10px;
-            border-radius: 5px;
-            border: 1px solid #ccc;
-        }
-        select {
-            padding: 10px;
-            width: 320px;
+
+        h1 {
+            color: #333;
             margin-bottom: 20px;
-            border-radius: 5px;
-            border: 1px solid #ccc;
+            font-size: 24px;
         }
+
+        .input-group {
+            margin-bottom: 20px;
+        }
+
+        input[type="url"] {
+            width: 100%;
+            padding: 12px;
+            font-size: 16px;
+            border: 2px solid #ccc;
+            border-radius: 5px;
+            transition: border-color 0.3s ease;
+        }
+
+        input[type="url"]:focus {
+            border-color: #007bff;
+            outline: none;
+        }
+
+        select {
+            width: 100%;
+            padding: 12px;
+            font-size: 16px;
+            border: 2px solid #ccc;
+            border-radius: 5px;
+            margin-top: 10px;
+            transition: border-color 0.3s ease;
+        }
+
+        select:focus {
+            border-color: #007bff;
+            outline: none;
+        }
+
         button {
-            padding: 10px 20px;
             background-color: #007bff;
             color: white;
+            padding: 12px 25px;
+            font-size: 16px;
             border: none;
             border-radius: 5px;
             cursor: pointer;
+            transition: background-color 0.3s ease;
         }
+
         button:hover {
             background-color: #0056b3;
         }
+
         .error {
-            color: red;
+            color: #ff4d4d;
+            font-size: 14px;
+            margin-top: 15px;
         }
-        iframe {
-            width: 100%;
-            max-width: 600px;
-            height: 350px;
-            border: none;
-            margin-top: 20px;
+
+        @media (max-width: 480px) {
+            .container {
+                width: 90%;
+            }
         }
     </style>
 </head>
@@ -62,12 +100,14 @@
     <div class="container">
         <h1>Video Downloader</h1>
         <form id="downloadForm">
-            <input type="url" id="videoUrl" placeholder="Enter YouTube URL" required><br><br>
-            <!-- Embed YouTube preview here -->
-            <iframe id="videoPreview" src="" title="YouTube video preview"></iframe><br><br>
-            <select id="qualitySelect" required>
-                <option value="">Select Quality</option>
-            </select><br><br>
+            <div class="input-group">
+                <input type="url" id="videoUrl" placeholder="Enter YouTube URL" required>
+            </div>
+            <div class="input-group">
+                <select id="qualitySelect" required>
+                    <option value="">Select Quality</option>
+                </select>
+            </div>
             <button type="submit">Download Video</button>
         </form>
         <div class="error" id="errorMessage"></div>
@@ -123,15 +163,8 @@
 
                 data.formats.forEach(format => {
                     const option = document.createElement('option');
-                    let formatDescription = format.description;
-
-                    // Display the quality in the desired format (e.g., 144p, 480p, etc.)
-                    if (formatDescription.includes('audio')) {
-                        formatDescription = 'Audio Only';  // Show "Audio Only" for audio formats
-                    }
-                    
                     option.value = format.code;
-                    option.textContent = formatDescription;
+                    option.textContent = format.description;
                     qualitySelect.appendChild(option);
                 });
             } catch (error) {
@@ -141,29 +174,6 @@
 
         // Fetch formats when the URL input is filled
         document.getElementById('videoUrl').addEventListener('input', fetchFormats);
-
-        // Update the video preview when the URL is entered
-        document.getElementById('videoUrl').addEventListener('input', () => {
-            const url = document.getElementById('videoUrl').value;
-            const videoPreview = document.getElementById('videoPreview');
-
-            // Check if the URL is a valid YouTube URL and update the preview
-            if (url && url.includes('youtube.com')) {
-                // Extract the video ID from the URL
-                const videoId = url.split('v=')[1]?.split('&')[0]; // Get the video ID after "v="
-                
-                if (videoId) {
-                    console.log("Video ID:", videoId); // Debugging: log the video ID
-                    videoPreview.src = `https://www.youtube.com/embed/${videoId}`;
-                } else {
-                    console.error("Invalid YouTube URL - Video ID not found");
-                    videoPreview.src = ''; // Clear the preview if the video ID is not found
-                }
-            } else {
-                console.log("Invalid YouTube URL"); // Debugging message for invalid URL
-                videoPreview.src = ''; // Clear the preview if the URL is not valid
-            }
-        });
     </script>
 </body>
 </html>
