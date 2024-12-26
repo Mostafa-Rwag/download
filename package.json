@@ -1,4 +1,5 @@
-  GNU nano 6.2                                          package.json                                                    {
+ 
+{
   "name": "generated_images",
   "version": "1.0.0",
   "main": "server.js",
