@@ -1,65 +1,89 @@
 const express = require('express');
-const path = require('path');
 const { exec } = require('child_process');
+const path = require('path');
+const fs = require('fs');
 const app = express();
 const port = 3000;
 
 // Middleware to parse JSON bodies
 app.use(express.json());
 
+// Serve static files (e.g., HTML, CSS, JS)
+app.use(express.static(path.join(__dirname, 'public')));
+
+// Route to serve the index.html file at the root URL
 app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'index.html'));
+  res.sendFile(path.join(__dirname, 'index.html'));
 });
-// Route to fetch available video formats
-app.post('/get-formats', (req, res) => {
+
+// Route to get video formats (quality options)
+// Route to get video formats (quality options)
+app.post('/get-formats', async (req, res) => {
     const { url } = req.body;
 
     if (!url) {
         return res.status(400).json({ error: 'URL is required' });
     }
 
-    exec(`yt-dlp -F ${url}`, (err, stdout, stderr) => {
-        if (err) {
-            console.error(stderr);
-            return res.status(500).json({ error: 'Failed to fetch formats' });
-        }
+    // yt-dlp command to get video formats
+    const command = `yt-dlp -F ${url}`;
 
-        const formats = stdout
-            .split('\n')
-            .filter(line => /^\d/.test(line))
-            .map(line => {
-                const [code, ...rest] = line.trim().split(/\s{2,}/);
-                return { code, description: rest.join(' ') };
+    try {
+        const result = await new Promise((resolve, reject) => {
+            exec(command, (err, stdout, stderr) => {
+                if (err) {
+                    reject(`Error fetching formats: ${stderr}`);
+                } else {
+                    resolve(stdout);
+                }
             });
+        });
 
-        res.json({ formats });
-    });
+        // Filter formats (144p, 480p, 640p, 720p, 1080p, and audio)
+        const qualityOptions = ['144', '480', '640', '720', '1080', 'audio'];
+        const formats = result
+            .split('\n')
+            .filter(line => line.trim() && !line.startsWith('Format code'))
+            .map(line => {
+                const parts = line.trim().split(/\s{2,}/);
+                return { code: parts[0], description: parts.slice(1).join(' ') };
+            })
+            .filter(format => qualityOptions.some(option => format.description.includes(option)));
+
+        res.status(200).json({ formats });
+    } catch (error) {
+        console.error('Error:', error);
+        res.status(500).json({ error: 'Failed to fetch formats', message: error });
+    }
 });
 
-// Route to download the selected video
-app.post('/download', (req, res) => {
-    const { url, quality } = req.body;
+
+// Route to handle downloading content with quality selection
+app.get('/download', async (req, res) => {
+    const { url, quality } = req.query;
 
     if (!url || !quality) {
-        return res.status(400).send('URL and quality are required.');
+        return res.status(400).json({ error: 'URL and quality are required' });
     }
 
-    const ytDlp = exec(`yt-dlp -f ${quality} -o - ${url}`, { maxBuffer: 1024 * 500 });
+    const downloadPath = path.join(__dirname, 'downloads', 'video.mp4');
 
-    res.setHeader('Content-Disposition', 'attachment; filename="video.mp4"');
-    res.setHeader('Content-Type', 'video/mp4');
-
-    ytDlp.stdout.pipe(res);
-
-    ytDlp.stderr.on('data', (data) => {
-        console.error(`stderr: ${data}`);
-    });
-
-    ytDlp.on('close', (code) => {
-        if (code !== 0) {
-            console.error(`yt-dlp process exited with code ${code}`);
-        }
-    });
+    try {
+        const command = `yt-dlp -f ${quality} -o "${downloadPath}" ${url}`;
+        await new Promise((resolve, reject) => {
+            exec(command, (err, stdout, stderr) => {
+                if (err) {
+                    reject(`Error during download: ${stderr}`);
+                } else {
+                    resolve(stdout);
+                }
+            });
+        });
+        res.download(downloadPath); // Send the video file to the client
+    } catch (error) {
+        console.error('Error:', error);
+        res.status(500).json({ error: 'Failed to download video', message: error });
+    }
 });
 
 // Start the server
