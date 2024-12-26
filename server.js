@@ -57,6 +57,27 @@ app.post('/get-formats', async (req, res) => {
         res.status(500).json({ error: 'Failed to fetch formats', message: error });
     }
 });
+app.get('/get-video-info', (req, res) => {
+    console.log('Request received at /get-video-info');
+    
+    const url = req.query.url;
+    if (!url) {
+        return res.status(400).json({ error: 'URL is required' });
+    }
+
+    // Simulate data fetching here
+    const data = {
+        previewUrl: 'https://path/to/preview/video.mp4',
+        formats: [
+            { quality: '144p', code: '144p_code' },
+            { quality: '1080p', code: '1080p_code' },
+            { quality: '4k', code: '4k_code' }
+        ]
+    };
+
+    console.log('Sending data:', data);  // Log the data being sent
+    res.json(data);
+});
 
 // Route to handle downloading content with quality selection
 app.get('/download', async (req, res) => {
