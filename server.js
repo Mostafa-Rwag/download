@@ -140,7 +140,7 @@ app.get('/', (req, res) => {
       </script>
     </body>
     </html>
-  `);
+  `); // End of res.send() content
 });
 
 // Route to get video formats (quality options)
