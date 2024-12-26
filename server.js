@@ -7,6 +7,7 @@ const PORT = 3000;
 // Serve static files from the 'downloads' folder
 app.use('/downloads', express.static(path.join(__dirname, 'downloads')));
 
+// Endpoint for downloading the video
 app.get('/download', (req, res) => {
     const videoUrl = req.query.url;
     if (!videoUrl) {
@@ -16,14 +17,14 @@ app.get('/download', (req, res) => {
     // Set the path where you want to download the video
     const downloadPath = path.join(__dirname, 'downloads', 'video.mp4');
 
-    // Execute the yt-dlp command to download the video
+    // Execute yt-dlp command to download the video
     exec(`yt-dlp -f best -o "${downloadPath}" ${videoUrl}`, (err, stdout, stderr) => {
         if (err) {
             console.error('Error during download:', stderr);
             return res.status(500).send('Failed to download video.');
         }
         console.log('Video downloaded:', stdout);
-        res.download(downloadPath); // This sends the video file to the client
+        res.download(downloadPath); // Send the video file to the client
     });
 });
 
