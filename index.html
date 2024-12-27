@@ -4,141 +4,60 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Video Downloader</title>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      height: 100vh;
-      margin: 0;
-      background-color: #f4f4f9;
-    }
-    .container {
-      text-align: center;
-      padding: 30px;
-      background-color: white;
-      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
-      border-radius: 10px;
-    }
-    input[type="url"] {
-      padding: 10px;
-      width: 300px;
-      margin-bottom: 10px;
-      border-radius: 5px;
-      border: 1px solid #ccc;
-    }
-    select {
-      padding: 10px;
-      width: 320px;
-      margin-bottom: 20px;
-      border-radius: 5px;
-      border: 1px solid #ccc;
-    }
-    button {
-      padding: 10px 20px;
-      background-color: #007bff;
-      color: white;
-      border: none;
-      border-radius: 5px;
-      cursor: pointer;
-    }
-    button:hover {
-      background-color: #0056b3;
-    }
-    iframe {
-      margin-top: 20px;
-      width: 640px;
-      height: 360px;
-      border: none;
-    }
-    .error {
-      color: red;
-    }
-  </style>
 </head>
 <body>
-  <div class="container">
-    <h1>Video Downloader</h1>
-    <form id="downloadForm">
-      <input type="url" id="videoUrl" placeholder="Enter YouTube URL" required><br><br>
-      <button type="button" onclick="previewVideo()">Preview Video</button><br><br>
-      <select id="qualitySelect" required>
-        <option value="">Select Quality</option>
-      </select><br><br>
-      <button type="submit">Download Video</button>
-    </form>
-    <iframe id="videoPreview" title="Video Preview"></iframe>
-    <div class="error" id="errorMessage"></div>
-  </div>
+  <h1>YouTube Video Downloader</h1>
+  <form id="fetch-form">
+    <input type="url" id="url" placeholder="Enter YouTube URL" required />
+    <button type="submit">Fetch Formats</button>
+  </form>
+
+  <h2>Select Quality</h2>
+  <select id="quality"></select>
+  <button id="download-button" disabled>Download</button>
 
   <script>
-    document.getElementById('downloadForm').addEventListener('submit', async (event) => {
-      event.preventDefault();
+    const fetchForm = document.getElementById('fetch-form');
+    const urlInput = document.getElementById('url');
+    const qualitySelect = document.getElementById('quality');
+    const downloadButton = document.getElementById('download-button');
 
-      const url = document.getElementById('videoUrl').value;
-      const quality = document.getElementById('qualitySelect').value;
+    fetchForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
 
-      if (!url || !quality) {
-        document.getElementById('errorMessage').textContent = 'Please provide a valid URL and select a quality.';
-        return;
-      }
+      const url = urlInput.value;
+      if (!url) return;
 
       try {
-        const response = await fetch(`/download?url=${encodeURIComponent(url)}&quality=${encodeURIComponent(quality)}`);
-        if (response.ok) {
-          const blob = await response.blob();
-          const link = document.createElement('a');
-          link.href = URL.createObjectURL(blob);
-          link.download = 'video.mp4';
-          link.click();
-        } else {
-          const data = await response.json();
-          document.getElementById('errorMessage').textContent = data.error || 'Error occurred during download.';
-        }
+        const response = await fetch('/get-formats', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url }),
+        });
+        const data = await response.json();
+
+        qualitySelect.innerHTML = '';
+        data.formats.forEach(format => {
+          const option = document.createElement('option');
+          option.value = format.code;
+          option.textContent = format.description;
+          qualitySelect.appendChild(option);
+        });
+
+        downloadButton.disabled = false;
       } catch (error) {
-        document.getElementById('errorMessage').textContent = 'Error occurred during download.';
-        console.error(error);
+        alert('Failed to fetch formats');
       }
     });
 
-    async function fetchFormats() {
-  const url = document.getElementById('videoUrl').value;
-  if (!url) return;
+    downloadButton.addEventListener('click', () => {
+      const quality = qualitySelect.value;
+      const url = urlInput.value;
 
-  try {
-    const response = await fetch('/get-formats', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url }),
+      if (!quality || !url) return;
+
+      window.location.href = `/download?url=${encodeURIComponent(url)}&quality=${quality}`;
     });
-
-    const data = await response.json();
-    const qualitySelect = document.getElementById('qualitySelect');
-    qualitySelect.innerHTML = '<option value="">Select Quality</option>';
-
-    data.formats.forEach(format => {
-      const option = document.createElement('option');
-      option.value = format.code;
-      option.textContent = format.description;
-      qualitySelect.appendChild(option);
-    });
-  } catch (error) {
-    console.error('Error fetching formats:', error);
-  }
-}
-
-
-    function previewVideo() {
-      const url = document.getElementById('videoUrl').value;
-      if (url) {
-        const videoId = new URL(url).searchParams.get('v');
-        const iframe = document.getElementById('videoPreview');
-        iframe.src = `https://www.youtube.com/embed/${videoId}`;
-      }
-    }
-
-    document.getElementById('videoUrl').addEventListener('input', fetchFormats);
   </script>
 </body>
 </html>
