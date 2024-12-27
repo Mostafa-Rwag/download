@@ -1,76 +1,19 @@
-const express = require('express');
 const { spawn } = require('child_process');
 const path = require('path');
-const fs = require('fs');
 
-const app = express();
-const port = process.env.PORT || 3000;
-
-// Middleware to parse JSON bodies
-app.use(express.json());
-app.use(express.static(path.join(__dirname, 'public')));
-
-// Route to serve the index.html file
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'index.html'));
-});
-
-// Route to fetch available formats
-app.post('/get-formats', (req, res) => {
-  const { url } = req.body;
-
-  if (!url) {
-    return res.status(400).json({ error: 'URL is required' });
-  }
-
-  // Use yt-dlp to fetch the formats
-  const ytDlpProcess = spawn('yt-dlp', ['-F', url]);
-
-  let formats = '';
-
-  ytDlpProcess.stdout.on('data', (data) => {
-    formats += data.toString();
-  });
-
-  ytDlpProcess.stderr.on('data', (data) => {
-    console.error(`stderr: ${data}`);
-  });
-
-  ytDlpProcess.on('close', (code) => {
-    if (code !== 0) {
-      return res.status(500).json({ error: 'Failed to fetch formats' });
-    }
-
-    // Parse formats and send as a response
-    const formatList = formats.split('\n').filter(line => line.includes('mp4')).map(line => {
-      const parts = line.trim().split(/\s+/);
-      return {
-        formatId: parts[0],
-        resolution: parts[1],
-        ext: parts[2],
-        fileSize: parts[3] || 'Unknown',
-      };
-    });
-
-    res.json({ formats: formatList });
-  });
-});
-
-// Route to download video directly to client
-app.get('/download', (req, res) => {
-  const { url, quality } = req.query;
-
-  if (!url || !quality) {
-    return res.status(400).json({ error: 'URL and quality are required' });
-  }
-
-  const tempVideoPath = path.join(__dirname, 'downloads', 'video.mp4');
-  const tempAudioPath = path.join(__dirname, 'downloads', 'audio.mp3');
-  const finalVideoPath = path.join(__dirname, 'downloads', 'final-video.mp4');
-
+async function downloadVideo(url, quality) {
   try {
-    // Step 1: Download the video in the requested quality (only mp4)
-    const ytProcess = spawn('yt-dlp', ['-f', quality, '-o', tempVideoPath, url]);
+    const tempVideoPath = path.join(__dirname, 'downloads', 'video.mp4');
+    const tempAudioPath = path.join(__dirname, 'downloads', 'audio.mp3');
+    const finalVideoPath = path.join(__dirname, 'downloads', 'final-video.mp4');
+
+    // Use yt-dlp with cookies
+    const ytProcess = spawn('yt-dlp', [
+      '--cookies', 'path/to/cookies.txt', // Replace with the correct path to your cookies file
+      '-f', quality, 
+      '-o', tempVideoPath, 
+      url
+    ]);
 
     ytProcess.stdout.on('data', (data) => {
       console.log(`stdout: ${data}`);
@@ -82,15 +25,19 @@ app.get('/download', (req, res) => {
 
     ytProcess.on('close', async (code) => {
       if (code !== 0) {
-        return res.status(500).json({ error: 'Failed to download video' });
+        console.error('Failed to download video');
+        return;
       }
 
-      // Step 2: Check if the video has audio
       const hasAudio = await checkAudioInVideo(tempVideoPath);
 
       if (!hasAudio) {
-        // If video doesn't have audio, download audio separately
-        const audioProcess = spawn('yt-dlp', ['-f', 'bestaudio', '-o', tempAudioPath, url]);
+        const audioProcess = spawn('yt-dlp', [
+          '--cookies', 'path/to/cookies.txt', // Same cookies file used here
+          '-f', 'bestaudio',
+          '-o', tempAudioPath,
+          url
+        ]);
 
         audioProcess.stdout.on('data', (data) => {
           console.log(`stdout (audio): ${data}`);
@@ -102,42 +49,21 @@ app.get('/download', (req, res) => {
 
         audioProcess.on('close', async (audioCode) => {
           if (audioCode !== 0) {
-            return res.status(500).json({ error: 'Failed to download audio' });
+            console.error('Failed to download audio');
+            return;
           }
 
-          // Step 3: Merge video and audio
           await mergeVideoAndAudio(tempVideoPath, tempAudioPath, finalVideoPath);
-
-          // Step 4: Send the final video to the client for download
-          res.download(finalVideoPath, 'video.mp4', (err) => {
-            if (err) {
-              console.error('Error sending file:', err);
-            }
-
-            // Clean up temporary files after download
-            fs.unlinkSync(tempVideoPath);
-            fs.unlinkSync(tempAudioPath);
-            fs.unlinkSync(finalVideoPath);
-          });
+          res.download(finalVideoPath); // Send final merged video to client
         });
       } else {
-        // If the video has audio, send it directly
-        res.download(tempVideoPath, 'video.mp4', (err) => {
-          if (err) {
-            console.error('Error sending file:', err);
-          }
-
-          // Clean up temporary files after download
-          fs.unlinkSync(tempVideoPath);
-        });
+        res.download(tempVideoPath); // Video with audio already
       }
     });
-
   } catch (error) {
-    console.error('Error:', error);
-    res.status(500).json({ error: 'Failed to download video', message: error.message });
+    console.error('Error downloading video:', error);
   }
-});
+}
 
 // Function to check if video has audio
 function checkAudioInVideo(videoPath) {
@@ -154,7 +80,7 @@ function checkAudioInVideo(videoPath) {
 
     ffprobeProcess.on('close', (code) => {
       if (code !== 0) {
-        return reject('Error checking audio in video');
+        reject('Error checking audio in video');
       }
       resolve(hasAudio);
     });
@@ -176,14 +102,9 @@ function mergeVideoAndAudio(videoPath, audioPath, outputPath) {
 
     mergeProcess.on('close', (code) => {
       if (code !== 0) {
-        return reject('Error merging video and audio');
+        reject('Error merging video and audio');
       }
       resolve();
     });
   });
 }
-
-// Start the server
-app.listen(port, () => {
-  console.log(`Server running at http://localhost:${port}`);
-});
