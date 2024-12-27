@@ -2,7 +2,6 @@ const express = require('express');
 const { exec } = require('child_process');
 const path = require('path');
 const fs = require('fs');
-
 const app = express();
 const port = 3000;
 
@@ -39,12 +38,23 @@ app.post('/get-formats', async (req, res) => {
     // Parse JSON output
     const videoData = JSON.parse(result);
     const formats = videoData.formats
-      .filter(format => format.ext === 'mp4' && format.acodec !== 'none' && format.vcodec !== 'none') // MP4 with audio & video
-      .filter(format => ['144p', '240p', '360p', '480p', '720p', '1080p'].includes(format.format_note)) // Standard qualities
+      .filter(format => format.ext === 'mp4' && format.acodec !== 'none' && format.vcodec !== 'none') // MP4 with both audio & video
+      .filter(format => ['360p', '480p', '720p', '1080p'].includes(format.format_note)) // Standard qualities
       .map(format => ({
         code: format.format_id,
         description: `${format.format_note} (${format.ext})`,
       }));
+
+    // Fallback if no suitable formats are found
+    if (formats.length === 0) {
+      const fallbackFormats = videoData.formats
+        .filter(format => format.ext === 'mp4' && format.acodec !== 'none' && format.vcodec !== 'none')
+        .map(format => ({
+          code: format.format_id,
+          description: `${format.format_note} (${format.ext})`,
+        }));
+      return res.status(200).json({ formats: fallbackFormats });
+    }
 
     res.status(200).json({ formats });
   } catch (error) {
@@ -53,7 +63,7 @@ app.post('/get-formats', async (req, res) => {
   }
 });
 
-// Download video
+// Download video with audio merge if needed
 app.get('/download', async (req, res) => {
   const { url, quality } = req.query;
 
@@ -62,20 +72,68 @@ app.get('/download', async (req, res) => {
   }
 
   const downloadPath = path.join(__dirname, 'downloads', 'video.mp4');
+  const tempAudioPath = path.join(__dirname, 'downloads', 'audio.mp3');
+  const tempVideoPath = path.join(__dirname, 'downloads', 'video-only.mp4');
 
   try {
-    const command = `yt-dlp -f ${quality} -o "${downloadPath}" ${url}`;
+    // Command to download the selected quality
+    const command = `yt-dlp -f ${quality} -o "${tempVideoPath}" ${url}`;
     await new Promise((resolve, reject) => {
       exec(command, (err, stdout, stderr) => {
         if (err) {
-          reject(`Error during download: ${stderr}`);
+          reject(`Error during video download: ${stderr}`);
         } else {
           resolve(stdout);
         }
       });
     });
 
-    res.download(downloadPath); // Send the file to the client
+    // Check if the video has audio or not
+    const checkAudioCommand = `ffprobe -v error -show_streams ${tempVideoPath} | grep codec_type | grep audio`;
+    const audioAvailable = await new Promise((resolve, reject) => {
+      exec(checkAudioCommand, (err, stdout, stderr) => {
+        if (err) {
+          resolve(false); // If error, assume no audio
+        } else {
+          resolve(stdout.includes('audio'));
+        }
+      });
+    });
+
+    // If no audio, download the audio and merge with the video
+    if (!audioAvailable) {
+      const audioCommand = `yt-dlp -f bestaudio -o "${tempAudioPath}" ${url}`;
+      await new Promise((resolve, reject) => {
+        exec(audioCommand, (err, stdout, stderr) => {
+          if (err) {
+            reject(`Error during audio download: ${stderr}`);
+          } else {
+            resolve(stdout);
+          }
+        });
+      });
+
+      // Merge audio and video
+      const mergeCommand = `ffmpeg -i ${tempVideoPath} -i ${tempAudioPath} -c:v copy -c:a aac -strict experimental ${downloadPath}`;
+      await new Promise((resolve, reject) => {
+        exec(mergeCommand, (err, stdout, stderr) => {
+          if (err) {
+            reject(`Error during merge: ${stderr}`);
+          } else {
+            resolve(stdout);
+          }
+        });
+      });
+
+      // Clean up temporary files
+      fs.unlinkSync(tempAudioPath);
+      fs.unlinkSync(tempVideoPath);
+    } else {
+      // If the video already has audio, simply rename the video
+      fs.renameSync(tempVideoPath, downloadPath);
+    }
+
+    res.download(downloadPath); // Send the video file to the client
   } catch (error) {
     console.error('Error:', error);
     res.status(500).json({ error: 'Failed to download video', message: error });
