@@ -82,6 +82,9 @@ app.post('/get-formats', (req, res) => {
   // استخدم yt-dlp لجلب الفئات
   getAvailableFormats(url)
     .then(formats => {
+      if (formats.length === 0) {
+        return res.status(400).json({ error: 'No formats available for this video' });
+      }
       res.json({ formats });
     })
     .catch(error => {
