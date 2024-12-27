@@ -58,34 +58,34 @@ app.get('/download', async (req, res) => {
     return res.status(400).json({ error: 'URL and quality are required' });
   }
 
-  const downloadPath = path.join(__dirname, 'downloads', 'video.mp4');
-  const tempAudioPath = path.join(__dirname, 'downloads', 'audio.mp3');
-  const tempVideoPath = path.join(__dirname, 'downloads', 'video-only.mp4');
-
   try {
-    const command = `yt-dlp -f ${quality} -o "${tempVideoPath}" ${url}`;
-    await execCommand(command);
+    // أمر yt-dlp لتنزيل الفيديو مباشرة
+    const videoCommand = `yt-dlp -f ${quality} -o - ${url}`;
 
-    const hasAudio = await execCommand(`ffprobe -v error -show_streams ${tempVideoPath} | grep audio`);
+    const videoProcess = exec(videoCommand);
 
-    if (!hasAudio) {
-      const audioCommand = `yt-dlp -f bestaudio -o "${tempAudioPath}" ${url}`;
-      await execCommand(audioCommand);
+    // إرسال استجابة التنزيل
+    res.setHeader('Content-Disposition', 'attachment; filename="video.mp4"');
+    res.setHeader('Content-Type', 'video/mp4');
 
-      const mergeCommand = `ffmpeg -i ${tempVideoPath} -i ${tempAudioPath} -c:v copy -c:a aac -strict experimental ${downloadPath}`;
-      await execCommand(mergeCommand);
+    videoProcess.stdout.pipe(res); // بث الفيديو مباشرة إلى العميل
 
-      fs.unlinkSync(tempAudioPath);
-      fs.unlinkSync(tempVideoPath);
-    } else {
-      fs.renameSync(tempVideoPath, downloadPath);
-    }
+    videoProcess.stderr.on('data', (data) => {
+      console.error(`yt-dlp error: ${data}`);
+    });
 
-    res.download(downloadPath);
+    videoProcess.on('close', (code) => {
+      if (code !== 0) {
+        console.error(`yt-dlp process exited with code ${code}`);
+        res.status(500).json({ error: 'Failed to download video' });
+      }
+    });
   } catch (error) {
+    console.error('Error during download:', error);
     res.status(500).json({ error: 'Failed to download video', message: error });
   }
 });
+
 
 const execCommand = (command) => {
   return new Promise((resolve, reject) => {
