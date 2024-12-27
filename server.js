@@ -22,7 +22,7 @@ app.post('/get-formats', async (req, res) => {
     return res.status(400).json({ error: 'URL is required' });
   }
 
-  const command = `yt-dlp -j ${url}`; // Use JSON output for parsing
+  const command = `yt-dlp -j ${url}`;
 
   try {
     const result = await new Promise((resolve, reject) => {
@@ -35,11 +35,10 @@ app.post('/get-formats', async (req, res) => {
       });
     });
 
-    // Parse JSON output
     const videoData = JSON.parse(result);
     const formats = videoData.formats
-      .filter(format => format.ext === 'mp4' && format.acodec !== 'none' && format.vcodec !== 'none') // MP4 with both audio & video
-      .filter(format => ['360p', '480p', '720p', '1080p'].includes(format.format_note)) // Standard qualities
+      .filter(format => format.ext === 'mp4')
+      .filter(format => ['144p', '240p', '360p', '480p', '720p', '1080p'].includes(format.format_note))
       .map(format => ({
         code: format.format_id,
         description: `${format.format_note} (${format.ext})`,
@@ -47,12 +46,11 @@ app.post('/get-formats', async (req, res) => {
 
     res.status(200).json({ formats });
   } catch (error) {
-    console.error('Error:', error);
     res.status(500).json({ error: 'Failed to fetch formats', message: error });
   }
 });
 
-// Download video with audio merge if needed
+// Download video
 app.get('/download', async (req, res) => {
   const { url, quality } = req.query;
 
@@ -65,69 +63,38 @@ app.get('/download', async (req, res) => {
   const tempVideoPath = path.join(__dirname, 'downloads', 'video-only.mp4');
 
   try {
-    // Command to download the selected quality
     const command = `yt-dlp -f ${quality} -o "${tempVideoPath}" ${url}`;
-    await new Promise((resolve, reject) => {
-      exec(command, (err, stdout, stderr) => {
-        if (err) {
-          reject(`Error during video download: ${stderr}`);
-        } else {
-          resolve(stdout);
-        }
-      });
-    });
+    await execCommand(command);
 
-    // Check if the video has audio or not
-    const checkAudioCommand = `ffprobe -v error -show_streams ${tempVideoPath} | grep codec_type | grep audio`;
-    const audioAvailable = await new Promise((resolve, reject) => {
-      exec(checkAudioCommand, (err, stdout, stderr) => {
-        if (err) {
-          resolve(false); // If error, assume no audio
-        } else {
-          resolve(stdout.includes('audio'));
-        }
-      });
-    });
+    const hasAudio = await execCommand(`ffprobe -v error -show_streams ${tempVideoPath} | grep audio`);
 
-    // If no audio, download the audio and merge with the video
-    if (!audioAvailable) {
+    if (!hasAudio) {
       const audioCommand = `yt-dlp -f bestaudio -o "${tempAudioPath}" ${url}`;
-      await new Promise((resolve, reject) => {
-        exec(audioCommand, (err, stdout, stderr) => {
-          if (err) {
-            reject(`Error during audio download: ${stderr}`);
-          } else {
-            resolve(stdout);
-          }
-        });
-      });
+      await execCommand(audioCommand);
 
-      // Merge audio and video
       const mergeCommand = `ffmpeg -i ${tempVideoPath} -i ${tempAudioPath} -c:v copy -c:a aac -strict experimental ${downloadPath}`;
-      await new Promise((resolve, reject) => {
-        exec(mergeCommand, (err, stdout, stderr) => {
-          if (err) {
-            reject(`Error during merge: ${stderr}`);
-          } else {
-            resolve(stdout);
-          }
-        });
-      });
+      await execCommand(mergeCommand);
 
-      // Clean up temporary files
       fs.unlinkSync(tempAudioPath);
       fs.unlinkSync(tempVideoPath);
     } else {
-      // If the video already has audio, simply rename the video
       fs.renameSync(tempVideoPath, downloadPath);
     }
 
-    res.download(downloadPath); // Send the video file to the client
+    res.download(downloadPath);
   } catch (error) {
-    console.error('Error:', error);
     res.status(500).json({ error: 'Failed to download video', message: error });
   }
 });
+
+const execCommand = (command) => {
+  return new Promise((resolve, reject) => {
+    exec(command, (err, stdout, stderr) => {
+      if (err) reject(stderr);
+      else resolve(stdout);
+    });
+  });
+};
 
 // Start server
 app.listen(port, () => {
