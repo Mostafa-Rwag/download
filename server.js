@@ -131,6 +131,22 @@ function mergeVideoAndAudio(videoPath, audioPath, outputPath) {
     });
   });
 }
+app.post('/get-formats', async (req, res) => {
+  const { url } = req.body;
+
+  if (!url) {
+    return res.status(400).json({ error: 'URL is required' });
+  }
+
+  try {
+    // استرداد الصيغ المتاحة من yt-dlp
+    const formats = await ytDlp.getFormats(url);
+    res.json(formats);
+  } catch (error) {
+    console.error('Error fetching formats:', error);
+    res.status(500).json({ error: 'Failed to fetch formats' });
+  }
+});
 
 // بدء الخادم على البورت المحدد
 app.listen(port, () => {
