@@ -6,7 +6,9 @@ const app = express();
 const port = process.env.PORT || 3000;
 
 app.use(express.json()); // تحليل body JSON
-
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'index.html'));
+});
 // مسار لتحميل الفيديو بالجودة
 app.get('/download', async (req, res) => {
   const { url, quality } = req.query;
