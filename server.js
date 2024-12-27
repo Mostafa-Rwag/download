@@ -1,15 +1,27 @@
-const { spawn } = require('child_process');
+const express = require('express');
 const path = require('path');
+const { spawn } = require('child_process');
+const fs = require('fs');
 
-async function downloadVideo(url, quality) {
+const app = express();
+const port = process.env.PORT || 3000; // تحديد البورت هنا
+
+// مسار لتحميل الفيديو
+app.get('/download', async (req, res) => {
+  const { url, quality } = req.query;
+
+  if (!url || !quality) {
+    return res.status(400).json({ error: 'URL and quality are required' });
+  }
+
+  const tempVideoPath = path.join(__dirname, 'downloads', 'video.mp4');
+  const tempAudioPath = path.join(__dirname, 'downloads', 'audio.mp3');
+  const finalVideoPath = path.join(__dirname, 'downloads', 'final-video.mp4');
+
   try {
-    const tempVideoPath = path.join(__dirname, 'downloads', 'video.mp4');
-    const tempAudioPath = path.join(__dirname, 'downloads', 'audio.mp3');
-    const finalVideoPath = path.join(__dirname, 'downloads', 'final-video.mp4');
-
-    // Use yt-dlp with cookies
+    // بدء تحميل الفيديو باستخدام yt-dlp
     const ytProcess = spawn('yt-dlp', [
-      '--cookies', 'path/to/cookies.txt', // Replace with the correct path to your cookies file
+      '--cookies', 'path/to/cookies.txt', // استبدل بالمسار الصحيح لملف الكوكيز
       '-f', quality, 
       '-o', tempVideoPath, 
       url
@@ -33,7 +45,7 @@ async function downloadVideo(url, quality) {
 
       if (!hasAudio) {
         const audioProcess = spawn('yt-dlp', [
-          '--cookies', 'path/to/cookies.txt', // Same cookies file used here
+          '--cookies', 'path/to/cookies.txt', // نفس ملف الكوكيز هنا
           '-f', 'bestaudio',
           '-o', tempAudioPath,
           url
@@ -54,18 +66,19 @@ async function downloadVideo(url, quality) {
           }
 
           await mergeVideoAndAudio(tempVideoPath, tempAudioPath, finalVideoPath);
-          res.download(finalVideoPath); // Send final merged video to client
+          res.download(finalVideoPath); // إرسال الفيديو النهائي للمستخدم مباشرة
         });
       } else {
-        res.download(tempVideoPath); // Video with audio already
+        res.download(tempVideoPath); // إرسال الفيديو الذي يحتوي على الصوت مباشرة
       }
     });
   } catch (error) {
     console.error('Error downloading video:', error);
+    res.status(500).json({ error: 'Failed to download video' });
   }
-}
+});
 
-// Function to check if video has audio
+// دالة للتحقق من وجود الصوت في الفيديو
 function checkAudioInVideo(videoPath) {
   return new Promise((resolve, reject) => {
     const ffprobeProcess = spawn('ffprobe', ['-v', 'error', '-show_streams', videoPath]);
@@ -87,7 +100,7 @@ function checkAudioInVideo(videoPath) {
   });
 }
 
-// Function to merge video and audio
+// دالة لدمج الفيديو والصوت
 function mergeVideoAndAudio(videoPath, audioPath, outputPath) {
   return new Promise((resolve, reject) => {
     const mergeProcess = spawn('ffmpeg', ['-i', videoPath, '-i', audioPath, '-c:v', 'copy', '-c:a', 'aac', '-strict', 'experimental', outputPath]);
@@ -108,3 +121,8 @@ function mergeVideoAndAudio(videoPath, audioPath, outputPath) {
     });
   });
 }
+
+// بدء الخادم على البورت المحدد
+app.listen(port, () => {
+  console.log(`Server is running on http://localhost:${port}`);
+});
