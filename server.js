@@ -60,6 +60,22 @@ app.get('/download', async (req, res) => {
     res.status(500).json({ error: 'Failed to download video', message: error.message });
   }
 });
+app.post('/get-formats', (req, res) => {
+  const { url } = req.body;
+  if (!url) {
+    return res.status(400).json({ error: 'URL is required' });
+  }
+  // استخدم yt-dlp لجلب الفومات أو أي عملية أخرى هنا
+  // مثال:
+  const command = `yt-dlp -F ${url}`;
+  execCommand(command)
+    .then(output => {
+      res.json({ formats: output });
+    })
+    .catch(error => {
+      res.status(500).json({ error: 'Failed to fetch formats', message: error.message });
+    });
+});
 
 // دالة تنفيذ الأوامر
 function execCommand(command) {
