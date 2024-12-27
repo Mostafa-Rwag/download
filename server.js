@@ -25,6 +25,14 @@ app.get('/download', async (req, res) => {
   const downloadPath = path.join(__dirname, 'downloads', 'final_video.mp4');
 
   try {
+    // استخدم yt-dlp لجلب الفئات المتاحة أولاً
+    const formats = await getAvailableFormats(url);
+
+    // تحقق مما إذا كانت الجودة المطلوبة موجودة
+    if (!formats.some(format => format.format_id === quality)) {
+      return res.status(400).json({ error: `Requested quality ${quality} is not available` });
+    }
+
     // استخدام yt-dlp لتحميل الفيديو بالجودة المطلوبة
     const command = `yt-dlp -f ${quality} -o "${tempVideoPath}" ${url}`;
     await execCommand(command);
@@ -72,17 +80,29 @@ app.post('/get-formats', (req, res) => {
   }
 
   // استخدم yt-dlp لجلب الفئات
-  const command = `yt-dlp -F ${url}`;
-  execCommand(command)
-    .then(output => {
-      // تنسيق الإخراج من yt-dlp إلى JSON قابل للعرض
-      const formats = parseFormats(output);
+  getAvailableFormats(url)
+    .then(formats => {
       res.json({ formats });
     })
     .catch(error => {
       res.status(500).json({ error: 'Failed to fetch formats', message: error.message });
     });
 });
+
+// دالة للحصول على الفئات المتاحة
+function getAvailableFormats(url) {
+  return new Promise((resolve, reject) => {
+    const command = `yt-dlp -F ${url}`;
+    exec(command, (err, stdout, stderr) => {
+      if (err) {
+        reject('Error fetching formats: ' + stderr);
+      } else {
+        const formats = parseFormats(stdout);
+        resolve(formats);
+      }
+    });
+  });
+}
 
 // دالة تحليل إخراج الفئات
 function parseFormats(output) {
@@ -92,12 +112,12 @@ function parseFormats(output) {
   // استخراج الفئات من الإخراج بناءً على التنسيق
   lines.forEach(line => {
     const formatData = line.trim().split(' ');
-    if (formatData.length > 1) {
+    if (formatData.length > 1 && !isNaN(formatData[0])) {
       formats.push({
         format_id: formatData[0],
-        resolution: formatData[1],
-        extension: formatData[2],
-        filesize: formatData[3],
+        resolution: formatData[1] || 'N/A',
+        extension: formatData[2] || 'N/A',
+        filesize: formatData[3] || 'N/A',
       });
     }
   });
