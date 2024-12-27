@@ -38,45 +38,20 @@ app.post('/get-formats', async (req, res) => {
             });
         });
 
-        // Define the allowed qualities
-        const allowedQualities = ['144', '280', '480', '640', '720', '1080', '1440', '2160'];
-
-        // Parse formats from the command output
+        // Parse and filter formats
         const formats = result
             .split('\n')
-            .filter(line => line.trim() && !line.startsWith('Format code'))
+            .filter(line => line.match(/(360p|480p|720p)/)) // Filter popular qualities
             .map(line => {
                 const parts = line.trim().split(/\s{2,}/);
                 return { code: parts[0], description: parts.slice(1).join(' ') };
-            })
-            .filter(format => allowedQualities.some(quality => format.description.includes(quality))) // Filter for required qualities
+            });
 
         res.status(200).json({ formats });
     } catch (error) {
         console.error('Error:', error);
         res.status(500).json({ error: 'Failed to fetch formats', message: error });
     }
-});
-app.get('/get-video-info', (req, res) => {
-    console.log('Request received at /get-video-info');
-    
-    const url = req.query.url;
-    if (!url) {
-        return res.status(400).json({ error: 'URL is required' });
-    }
-
-    // Simulate data fetching here
-    const data = {
-        previewUrl: 'https://path/to/preview/video.mp4',
-        formats: [
-            { quality: '144p', code: '144p_code' },
-            { quality: '1080p', code: '1080p_code' },
-            { quality: '4k', code: '4k_code' }
-        ]
-    };
-
-    console.log('Sending data:', data);  // Log the data being sent
-    res.json(data);
 });
 
 // Route to handle downloading content with quality selection
@@ -87,10 +62,11 @@ app.get('/download', async (req, res) => {
         return res.status(400).json({ error: 'URL and quality are required' });
     }
 
-    const downloadPath = path.join(__dirname, 'downloads', 'video.mp4');
+    const uniqueName = `video_${Date.now()}.mp4`;
+    const downloadPath = path.join(__dirname, 'downloads', uniqueName);
 
     try {
-        const command = `yt-dlp -f ${quality} -o "${downloadPath}" ${url}`;
+        const command = `yt-dlp -f "${quality}+bestaudio/best" -o "${downloadPath}" ${url}`;
         await new Promise((resolve, reject) => {
             exec(command, (err, stdout, stderr) => {
                 if (err) {
@@ -100,7 +76,9 @@ app.get('/download', async (req, res) => {
                 }
             });
         });
-        res.download(downloadPath); // Send the video file to the client
+        res.download(downloadPath, uniqueName, () => {
+            fs.unlinkSync(downloadPath); // Cleanup file after download
+        });
     } catch (error) {
         console.error('Error:', error);
         res.status(500).json({ error: 'Failed to download video', message: error });
