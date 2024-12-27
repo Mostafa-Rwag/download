@@ -1,3 +1,6 @@
+
+
+
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
@@ -5,6 +8,8 @@ const { exec } = require('child_process');
 const app = express();
 const port = process.env.PORT || 3000;
 
+app.use(express.json()); // لتحليل body JSON
+app.use(express.static(path.join(__dirname, 'downloads'))); // لتقديم الملفات الثابتة مثل الفيديو
 app.use(express.json()); // تحليل body JSON
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
@@ -60,22 +65,47 @@ app.get('/download', async (req, res) => {
     res.status(500).json({ error: 'Failed to download video', message: error.message });
   }
 });
+
+// مسار لجلب الفئات (formats) الخاصة بالفيديو
 app.post('/get-formats', (req, res) => {
   const { url } = req.body;
   if (!url) {
     return res.status(400).json({ error: 'URL is required' });
   }
-  // استخدم yt-dlp لجلب الفومات أو أي عملية أخرى هنا
-  // مثال:
+
+  // استخدم yt-dlp لجلب الفئات
   const command = `yt-dlp -F ${url}`;
   execCommand(command)
     .then(output => {
-      res.json({ formats: output });
+      // تنسيق الإخراج من yt-dlp إلى JSON قابل للعرض
+      const formats = parseFormats(output);
+      res.json({ formats });
     })
     .catch(error => {
       res.status(500).json({ error: 'Failed to fetch formats', message: error.message });
     });
 });
+
+// دالة تحليل إخراج الفئات
+function parseFormats(output) {
+  const formats = [];
+  const lines = output.split('\n');
+
+  // استخراج الفئات من الإخراج بناءً على التنسيق
+  lines.forEach(line => {
+    const formatData = line.trim().split(' ');
+    if (formatData.length > 1) {
+      formats.push({
+        format_id: formatData[0],
+        resolution: formatData[1],
+        extension: formatData[2],
+        filesize: formatData[3],
+      });
+    }
+  });
+
+  return formats;
+}
 
 // دالة تنفيذ الأوامر
 function execCommand(command) {
@@ -94,3 +124,7 @@ function execCommand(command) {
 app.listen(port, () => {
   console.log(`Server is running on port ${port}`);
 });
+
+
+
+ 
