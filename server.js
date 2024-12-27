@@ -51,40 +51,42 @@ app.post('/get-formats', async (req, res) => {
 });
 
 // Download video
-app.get('/download', async (req, res) => {
-  const { url, quality } = req.query;
+app.post('/get-formats', async (req, res) => {
+  const { url } = req.body;
 
-  if (!url || !quality) {
-    return res.status(400).json({ error: 'URL and quality are required' });
+  if (!url) {
+    return res.status(400).json({ error: 'URL is required' });
   }
+
+  const command = `yt-dlp -F ${url}`;
 
   try {
-    // أمر yt-dlp لتنزيل الفيديو مباشرة
-    const videoCommand = `yt-dlp -f ${quality} -o - ${url}`;
-
-    const videoProcess = exec(videoCommand);
-
-    // إرسال استجابة التنزيل
-    res.setHeader('Content-Disposition', 'attachment; filename="video.mp4"');
-    res.setHeader('Content-Type', 'video/mp4');
-
-    videoProcess.stdout.pipe(res); // بث الفيديو مباشرة إلى العميل
-
-    videoProcess.stderr.on('data', (data) => {
-      console.error(`yt-dlp error: ${data}`);
+    const result = await new Promise((resolve, reject) => {
+      exec(command, (err, stdout, stderr) => {
+        if (err) {
+          console.error('yt-dlp error:', stderr); // سجل أي أخطاء
+          reject(`Error fetching formats: ${stderr}`);
+        } else {
+          resolve(stdout);
+        }
+      });
     });
 
-    videoProcess.on('close', (code) => {
-      if (code !== 0) {
-        console.error(`yt-dlp process exited with code ${code}`);
-        res.status(500).json({ error: 'Failed to download video' });
-      }
-    });
+    const formats = result
+      .split('\n')
+      .filter(line => line.trim() && line.includes('mp4')) // عرض فقط الصيغ mp4
+      .map(line => {
+        const parts = line.trim().split(/\s{2,}/);
+        return { code: parts[0], description: parts.slice(1).join(' ') };
+      });
+
+    res.status(200).json({ formats });
   } catch (error) {
-    console.error('Error during download:', error);
-    res.status(500).json({ error: 'Failed to download video', message: error });
+    console.error('Error fetching formats:', error); // عرض الأخطاء في وحدة التحكم
+    res.status(500).json({ error: 'Failed to fetch formats', message: error });
   }
 });
+
 
 
 const execCommand = (command) => {
