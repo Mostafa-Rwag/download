@@ -11,12 +11,12 @@ app.use(express.json());
 // Serve static files (e.g., HTML, CSS, JS)
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Route to serve the index.html file at the root URL
+// Route to serve the index.html file
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-// Route to get video formats (specific quality options)
+// Route to get available formats
 app.post('/get-formats', async (req, res) => {
     const { url } = req.body;
 
@@ -24,9 +24,7 @@ app.post('/get-formats', async (req, res) => {
         return res.status(400).json({ error: 'URL is required' });
     }
 
-    // yt-dlp command to get video formats
     const command = `yt-dlp -F ${url}`;
-
     try {
         const result = await new Promise((resolve, reject) => {
             exec(command, (err, stdout, stderr) => {
@@ -38,21 +36,20 @@ app.post('/get-formats', async (req, res) => {
             });
         });
 
-        // Filter formats for 480p, 720p, 1080p, and higher qualities
-        const targetQualities = ['480p', '720p', '1080p'];
+        // Parse available formats
         const formats = result
             .split('\n')
-            .filter(line => {
-                const match = line.match(/(\d{3,4}p)/); // Find quality like '480p'
-                if (match) {
-                    const quality = match[1];
-                    return targetQualities.includes(quality) || parseInt(quality) > 1080;
-                }
-                return false;
-            })
+            .filter(line => line.trim() && !line.startsWith('Format code'))
             .map(line => {
                 const parts = line.trim().split(/\s{2,}/);
                 return { code: parts[0], description: parts.slice(1).join(' ') };
+            })
+            .filter(format => {
+                // Filter for MP4 with both video and audio
+                return (
+                    /mp4/.test(format.description.toLowerCase()) &&
+                    /video\+audio/.test(format.description.toLowerCase())
+                );
             });
 
         res.status(200).json({ formats });
@@ -62,7 +59,7 @@ app.post('/get-formats', async (req, res) => {
     }
 });
 
-// Route to handle downloading content with quality selection
+// Route to download video
 app.get('/download', async (req, res) => {
     const { url, quality } = req.query;
 
@@ -70,11 +67,10 @@ app.get('/download', async (req, res) => {
         return res.status(400).json({ error: 'URL and quality are required' });
     }
 
-    const uniqueName = `video_${Date.now()}.mp4`;
-    const downloadPath = path.join(__dirname, 'downloads', uniqueName);
+    const downloadPath = path.join(__dirname, 'downloads', 'video.mp4');
 
     try {
-        const command = `yt-dlp -f "${quality}+bestaudio/best" -o "${downloadPath}" ${url}`;
+        const command = `yt-dlp -f ${quality} -o "${downloadPath}" ${url}`;
         await new Promise((resolve, reject) => {
             exec(command, (err, stdout, stderr) => {
                 if (err) {
@@ -84,8 +80,10 @@ app.get('/download', async (req, res) => {
                 }
             });
         });
-        res.download(downloadPath, uniqueName, () => {
-            fs.unlinkSync(downloadPath); // Cleanup file after download
+
+        res.download(downloadPath, 'video.mp4', err => {
+            if (err) console.error('Error sending file:', err);
+            fs.unlink(downloadPath, () => {}); // Delete the file after sending
         });
     } catch (error) {
         console.error('Error:', error);
