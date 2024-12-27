@@ -51,22 +51,40 @@ app.post('/get-formats', async (req, res) => {
 });
 
 // Download video
-app.get('/download', async (req, res) => {
+app.get('/download', (req, res) => {
   const { url, quality } = req.query;
 
   if (!url || !quality) {
     return res.status(400).json({ error: 'URL and quality are required' });
   }
 
-  // تنفيذ تنزيل الفيديو
   try {
-    const command = `yt-dlp -f ${quality} ${url}`;
-    const output = await execCommand(command);
-    res.status(200).send('Download started successfully');
+    // Set response headers
+    res.setHeader('Content-Disposition', `attachment; filename="video.mp4"`);
+    res.setHeader('Content-Type', 'video/mp4');
+
+    // Spawn yt-dlp process to stream video
+    const ytProcess = spawn('yt-dlp', ['-f', quality, '-o', '-', url]);
+
+    // Pipe the output of yt-dlp directly to the response
+    ytProcess.stdout.pipe(res);
+
+    ytProcess.stderr.on('data', (data) => {
+      console.error(`Error: ${data}`);
+    });
+
+    ytProcess.on('close', (code) => {
+      if (code !== 0) {
+        console.error(`yt-dlp process exited with code ${code}`);
+        res.status(500).json({ error: 'Failed to download video' });
+      }
+    });
   } catch (error) {
-    res.status(500).json({ error: 'Failed to download video', message: error });
+    console.error('Error:', error);
+    res.status(500).json({ error: 'Failed to download video', message: error.message });
   }
 });
+
 
 
 
