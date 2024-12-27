@@ -23,7 +23,7 @@ app.post('/get-formats', async (req, res) => {
     return res.status(400).json({ error: 'URL is required' });
   }
 
-  const command = `yt-dlp -F ${url}`;
+  const command = `yt-dlp -j ${url}`; // Use JSON output for better parsing
 
   try {
     const result = await new Promise((resolve, reject) => {
@@ -36,14 +36,15 @@ app.post('/get-formats', async (req, res) => {
       });
     });
 
-    // Parse formats
-    const formats = result
-      .split('\n')
-      .filter(line => line.includes('mp4') && line.includes('audio'))
-      .map(line => {
-        const parts = line.trim().split(/\s{2,}/);
-        return { code: parts[0], description: parts.slice(1).join(' ') };
-      });
+    // Parse JSON output
+    const videoData = JSON.parse(result);
+    const formats = videoData.formats
+      .filter(format => format.ext === 'mp4' && format.acodec !== 'none' && format.vcodec !== 'none') // MP4 with audio & video
+      .filter(format => ['144p', '240p', '360p', '480p', '720p', '1080p'].includes(format.format_note)) // Standard qualities
+      .map(format => ({
+        code: format.format_id,
+        description: `${format.format_note} (${format.ext})`,
+      }));
 
     res.status(200).json({ formats });
   } catch (error) {
