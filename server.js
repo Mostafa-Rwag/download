@@ -51,39 +51,20 @@ app.post('/get-formats', async (req, res) => {
 });
 
 // Download video
-app.post('/get-formats', async (req, res) => {
-  const { url } = req.body;
+app.get('/download', async (req, res) => {
+  const { url, quality } = req.query;
 
-  if (!url) {
-    return res.status(400).json({ error: 'URL is required' });
+  if (!url || !quality) {
+    return res.status(400).json({ error: 'URL and quality are required' });
   }
 
-  const command = `yt-dlp -F ${url}`;
-
+  // تنفيذ تنزيل الفيديو
   try {
-    const result = await new Promise((resolve, reject) => {
-      exec(command, (err, stdout, stderr) => {
-        if (err) {
-          console.error('yt-dlp error:', stderr); // سجل أي أخطاء
-          reject(`Error fetching formats: ${stderr}`);
-        } else {
-          resolve(stdout);
-        }
-      });
-    });
-
-    const formats = result
-      .split('\n')
-      .filter(line => line.trim() && line.includes('mp4')) // عرض فقط الصيغ mp4
-      .map(line => {
-        const parts = line.trim().split(/\s{2,}/);
-        return { code: parts[0], description: parts.slice(1).join(' ') };
-      });
-
-    res.status(200).json({ formats });
+    const command = `yt-dlp -f ${quality} ${url}`;
+    const output = await execCommand(command);
+    res.status(200).send('Download started successfully');
   } catch (error) {
-    console.error('Error fetching formats:', error); // عرض الأخطاء في وحدة التحكم
-    res.status(500).json({ error: 'Failed to fetch formats', message: error });
+    res.status(500).json({ error: 'Failed to download video', message: error });
   }
 });
 
