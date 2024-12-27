@@ -3,7 +3,66 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Video Downloader</title>
+  <title>YouTube Video Downloader</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+      background-color: #f4f4f9;
+      text-align: center;
+    }
+
+    h1 {
+      color: #333;
+      margin-top: 20px;
+    }
+
+    form, #video-preview, .download-section {
+      margin: 20px auto;
+      max-width: 600px;
+      padding: 15px;
+      background: #fff;
+      border-radius: 10px;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    }
+
+    input[type="url"] {
+      width: 80%;
+      padding: 10px;
+      margin-bottom: 10px;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+    }
+
+    button {
+      padding: 10px 20px;
+      background: #28a745;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background: #218838;
+    }
+
+    select {
+      width: 80%;
+      padding: 10px;
+      margin: 10px 0;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+    }
+
+    iframe {
+      width: 100%;
+      height: 315px;
+      border: none;
+      margin-top: 10px;
+    }
+  </style>
 </head>
 <body>
   <h1>YouTube Video Downloader</h1>
@@ -12,14 +71,24 @@
     <button type="submit">Fetch Formats</button>
   </form>
 
-  <h2>Select Quality</h2>
-  <select id="quality"></select>
-  <button id="download-button" disabled>Download</button>
+  <div id="video-preview" style="display: none;">
+    <h2>Video Preview</h2>
+    <iframe id="video-frame"></iframe>
+  </div>
+
+  <div class="download-section" style="display: none;">
+    <h2>Select Quality</h2>
+    <select id="quality"></select>
+    <button id="download-button">Download</button>
+  </div>
 
   <script>
     const fetchForm = document.getElementById('fetch-form');
     const urlInput = document.getElementById('url');
     const qualitySelect = document.getElementById('quality');
+    const videoPreview = document.getElementById('video-preview');
+    const videoFrame = document.getElementById('video-frame');
+    const downloadSection = document.querySelector('.download-section');
     const downloadButton = document.getElementById('download-button');
 
     fetchForm.addEventListener('submit', async (e) => {
@@ -29,22 +98,30 @@
       if (!url) return;
 
       try {
+        const videoId = new URL(url).searchParams.get("v");
+        videoFrame.src = `https://www.youtube.com/embed/${videoId}`;
+        videoPreview.style.display = 'block';
+
         const response = await fetch('/get-formats', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ url }),
         });
+
         const data = await response.json();
-
         qualitySelect.innerHTML = '';
-        data.formats.forEach(format => {
-          const option = document.createElement('option');
-          option.value = format.code;
-          option.textContent = format.description;
-          qualitySelect.appendChild(option);
-        });
 
-        downloadButton.disabled = false;
+        if (data.formats.length > 0) {
+          data.formats.forEach(format => {
+            const option = document.createElement('option');
+            option.value = format.code;
+            option.textContent = format.description;
+            qualitySelect.appendChild(option);
+          });
+          downloadSection.style.display = 'block';
+        } else {
+          alert('No standard qualities found.');
+        }
       } catch (error) {
         alert('Failed to fetch formats');
       }
