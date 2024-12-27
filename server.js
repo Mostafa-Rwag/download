@@ -1,5 +1,5 @@
 const express = require('express');
-const { spawn } = require('child_process'); // استيراد spawn من child_process
+const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 
@@ -13,6 +13,47 @@ app.use(express.static(path.join(__dirname, 'public')));
 // Route to serve the index.html file
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
+});
+
+// Route to fetch available formats
+app.post('/get-formats', (req, res) => {
+  const { url } = req.body;
+
+  if (!url) {
+    return res.status(400).json({ error: 'URL is required' });
+  }
+
+  // Use yt-dlp to fetch the formats
+  const ytDlpProcess = spawn('yt-dlp', ['-F', url]);
+
+  let formats = '';
+
+  ytDlpProcess.stdout.on('data', (data) => {
+    formats += data.toString();
+  });
+
+  ytDlpProcess.stderr.on('data', (data) => {
+    console.error(`stderr: ${data}`);
+  });
+
+  ytDlpProcess.on('close', (code) => {
+    if (code !== 0) {
+      return res.status(500).json({ error: 'Failed to fetch formats' });
+    }
+
+    // Parse formats and send as a response
+    const formatList = formats.split('\n').filter(line => line.includes('mp4')).map(line => {
+      const parts = line.trim().split(/\s+/);
+      return {
+        formatId: parts[0],
+        resolution: parts[1],
+        ext: parts[2],
+        fileSize: parts[3] || 'Unknown',
+      };
+    });
+
+    res.json({ formats: formatList });
+  });
 });
 
 // Route to download video directly to client
