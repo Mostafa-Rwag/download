@@ -6,6 +6,12 @@ const fs = require('fs');
 const app = express();
 const port = process.env.PORT || 3000; // تحديد البورت هنا
 
+
+// إضافة نقطة النهاية للمسار الجذر "/"
+app.get('/', (req, res) => {
+  res.send('Welcome to the download service!');
+});
+
 // مسار لتحميل الفيديو
 app.get('/download', async (req, res) => {
   const { url, quality } = req.query;
