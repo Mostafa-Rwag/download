@@ -22,7 +22,7 @@ app.post('/get-formats', async (req, res) => {
     return res.status(400).json({ error: 'URL is required' });
   }
 
-  const command = `yt-dlp -j ${url}`; // Use JSON output for better parsing
+  const command = `yt-dlp -j ${url}`; // Use JSON output for parsing
 
   try {
     const result = await new Promise((resolve, reject) => {
@@ -44,17 +44,6 @@ app.post('/get-formats', async (req, res) => {
         code: format.format_id,
         description: `${format.format_note} (${format.ext})`,
       }));
-
-    // Fallback if no suitable formats are found
-    if (formats.length === 0) {
-      const fallbackFormats = videoData.formats
-        .filter(format => format.ext === 'mp4' && format.acodec !== 'none' && format.vcodec !== 'none')
-        .map(format => ({
-          code: format.format_id,
-          description: `${format.format_note} (${format.ext})`,
-        }));
-      return res.status(200).json({ formats: fallbackFormats });
-    }
 
     res.status(200).json({ formats });
   } catch (error) {
