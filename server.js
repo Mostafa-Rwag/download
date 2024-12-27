@@ -1,145 +1,22 @@
 const express = require('express');
-const path = require('path');
-const { spawn } = require('child_process');
+const ytDlp = require('yt-dlp');
 const fs = require('fs');
-
+const path = require('path');
 const app = express();
-const port = process.env.PORT || 3000; // تحديد البورت هنا
+const port = process.env.PORT || 3000;
 
-
-// إضافة نقطة النهاية للمسار الجذر "/"
-// Serve static files (e.g., HTML, CSS, JS)
-app.use(express.static(path.join(__dirname, 'public')));
-
-// Route to serve the index.html file at the root URL
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'index.html'));
-});
+app.use(express.json());  // تأكد من أنك تستخدم هذا middleware لتحليل JSON في الطلبات
 
 // مسار لتحميل الفيديو
-app.get('/download', async (req, res) => {
-  const { url, quality } = req.query;
-
-  if (!url || !quality) {
-    return res.status(400).json({ error: 'URL and quality are required' });
-  }
-
-  const tempVideoPath = path.join(__dirname, 'downloads', 'video.mp4');
-  const tempAudioPath = path.join(__dirname, 'downloads', 'audio.mp3');
-  const finalVideoPath = path.join(__dirname, 'downloads', 'final-video.mp4');
-
-  try {
-    // بدء تحميل الفيديو باستخدام yt-dlp
-    const ytProcess = spawn('yt-dlp', [
-      '--cookies', 'path/to/cookies.txt', // استبدل بالمسار الصحيح لملف الكوكيز
-      '-f', quality, 
-      '-o', tempVideoPath, 
-      url
-    ]);
-
-    ytProcess.stdout.on('data', (data) => {
-      console.log(`stdout: ${data}`);
-    });
-
-    ytProcess.stderr.on('data', (data) => {
-      console.error(`stderr: ${data}`);
-    });
-
-    ytProcess.on('close', async (code) => {
-      if (code !== 0) {
-        console.error('Failed to download video');
-        return;
-      }
-
-      const hasAudio = await checkAudioInVideo(tempVideoPath);
-
-      if (!hasAudio) {
-        const audioProcess = spawn('yt-dlp', [
-          '--cookies', 'path/to/cookies.txt', // نفس ملف الكوكيز هنا
-          '-f', 'bestaudio',
-          '-o', tempAudioPath,
-          url
-        ]);
-
-        audioProcess.stdout.on('data', (data) => {
-          console.log(`stdout (audio): ${data}`);
-        });
-
-        audioProcess.stderr.on('data', (data) => {
-          console.error(`stderr (audio): ${data}`);
-        });
-
-        audioProcess.on('close', async (audioCode) => {
-          if (audioCode !== 0) {
-            console.error('Failed to download audio');
-            return;
-          }
-
-          await mergeVideoAndAudio(tempVideoPath, tempAudioPath, finalVideoPath);
-          res.download(finalVideoPath); // إرسال الفيديو النهائي للمستخدم مباشرة
-        });
-      } else {
-        res.download(tempVideoPath); // إرسال الفيديو الذي يحتوي على الصوت مباشرة
-      }
-    });
-  } catch (error) {
-    console.error('Error downloading video:', error);
-    res.status(500).json({ error: 'Failed to download video' });
-  }
-});
-
-// دالة للتحقق من وجود الصوت في الفيديو
-function checkAudioInVideo(videoPath) {
-  return new Promise((resolve, reject) => {
-    const ffprobeProcess = spawn('ffprobe', ['-v', 'error', '-show_streams', videoPath]);
-
-    let hasAudio = false;
-
-    ffprobeProcess.stdout.on('data', (data) => {
-      if (data.toString().includes('audio')) {
-        hasAudio = true;
-      }
-    });
-
-    ffprobeProcess.on('close', (code) => {
-      if (code !== 0) {
-        reject('Error checking audio in video');
-      }
-      resolve(hasAudio);
-    });
-  });
-}
-
-// دالة لدمج الفيديو والصوت
-function mergeVideoAndAudio(videoPath, audioPath, outputPath) {
-  return new Promise((resolve, reject) => {
-    const mergeProcess = spawn('ffmpeg', ['-i', videoPath, '-i', audioPath, '-c:v', 'copy', '-c:a', 'aac', '-strict', 'experimental', outputPath]);
-
-    mergeProcess.stdout.on('data', (data) => {
-      console.log(`stdout (merge): ${data}`);
-    });
-
-    mergeProcess.stderr.on('data', (data) => {
-      console.error(`stderr (merge): ${data}`);
-    });
-
-    mergeProcess.on('close', (code) => {
-      if (code !== 0) {
-        reject('Error merging video and audio');
-      }
-      resolve();
-    });
-  });
-}
 app.post('/get-formats', async (req, res) => {
-  const { url } = req.body;
+  const { url } = req.body;  // تأكد أن body يحتوي على رابط الفيديو
 
   if (!url) {
     return res.status(400).json({ error: 'URL is required' });
   }
 
   try {
-    // استرداد الصيغ المتاحة من yt-dlp
+    // استرجاع الصيغ المتاحة للفيديو باستخدام yt-dlp
     const formats = await ytDlp.getFormats(url);
     res.json(formats);
   } catch (error) {
@@ -148,7 +25,71 @@ app.post('/get-formats', async (req, res) => {
   }
 });
 
-// بدء الخادم على البورت المحدد
-app.listen(port, () => {
-  console.log(`Server is running on http://localhost:${port}`);
+// مسار لتحميل الفيديو بجودة معينة مع الصوت
+app.get('/download', async (req, res) => {
+  const { url, quality } = req.query;  // تأكد أن URL والجودة مرسلين في الاستعلام
+
+  if (!url || !quality) {
+    return res.status(400).json({ error: 'URL and quality are required' });
+  }
+
+  const tempVideoPath = path.join(__dirname, 'downloads', 'video.mp4');
+  const tempAudioPath = path.join(__dirname, 'downloads', 'audio.mp3');
+  const downloadPath = path.join(__dirname, 'downloads', 'final_video.mp4');
+
+  try {
+    // تحميل الفيديو بالجودة المطلوبة
+    await ytDlp.exec([url, '-f', quality, '-o', tempVideoPath]);
+
+    // تحقق إذا كان الفيديو يحتوي على صوت
+    const hasAudio = await ytDlp.exec([url, '-f', quality, '--get-format', '--get-filename']);
+
+    if (!hasAudio) {
+      // إذا لم يكن هناك صوت، قم بتحميل الصوت
+      await ytDlp.exec([url, '-f', 'bestaudio', '-o', tempAudioPath]);
+
+      // دمج الصوت مع الفيديو
+      const mergeCommand = `ffmpeg -i ${tempVideoPath} -i ${tempAudioPath} -c:v copy -c:a aac -strict experimental ${downloadPath}`;
+      await execCommand(mergeCommand);
+
+      // حذف الملفات المؤقتة
+      fs.unlinkSync(tempAudioPath);
+    } else {
+      // إذا كان الفيديو يحتوي على صوت، لا حاجة للدمج
+      fs.renameSync(tempVideoPath, downloadPath);
+    }
+
+    // إرسال الملف للتنزيل مباشرة للمستخدم
+    res.download(downloadPath, 'video.mp4', (err) => {
+      if (err) {
+        console.error('Download error:', err);
+      } else {
+        // حذف الملف بعد تحميله
+        fs.unlinkSync(downloadPath);
+      }
+    });
+
+  } catch (error) {
+    console.error('Download failed:', error);
+    res.status(500).json({ error: 'Failed to download video', message: error.message });
+  }
 });
+
+// بدء السيرفر
+app.listen(port, () => {
+  console.log(`Server is running on port ${port}`);
+});
+
+// دالة تنفيذ الأوامر
+function execCommand(command) {
+  return new Promise((resolve, reject) => {
+    const exec = require('child_process').exec;
+    exec(command, (err, stdout, stderr) => {
+      if (err) {
+        reject(stderr);
+      } else {
+        resolve(stdout);
+      }
+    });
+  });
+}
