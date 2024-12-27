@@ -16,7 +16,7 @@ app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-// Route to get video formats (quality options)
+// Route to get video formats (specific quality options)
 app.post('/get-formats', async (req, res) => {
     const { url } = req.body;
 
@@ -38,10 +38,18 @@ app.post('/get-formats', async (req, res) => {
             });
         });
 
-        // Parse and filter formats
+        // Filter formats for 480p, 720p, 1080p, and higher qualities
+        const targetQualities = ['480p', '720p', '1080p'];
         const formats = result
             .split('\n')
-            .filter(line => line.match(/(360p|480p|720p)/)) // Filter popular qualities
+            .filter(line => {
+                const match = line.match(/(\d{3,4}p)/); // Find quality like '480p'
+                if (match) {
+                    const quality = match[1];
+                    return targetQualities.includes(quality) || parseInt(quality) > 1080;
+                }
+                return false;
+            })
             .map(line => {
                 const parts = line.trim().split(/\s{2,}/);
                 return { code: parts[0], description: parts.slice(1).join(' ') };
