@@ -8,8 +8,12 @@ const port = process.env.PORT || 3000; // تحديد البورت هنا
 
 
 // إضافة نقطة النهاية للمسار الجذر "/"
+// Serve static files (e.g., HTML, CSS, JS)
+app.use(express.static(path.join(__dirname, 'public')));
+
+// Route to serve the index.html file at the root URL
 app.get('/', (req, res) => {
-  res.send('Welcome to the download service!');
+  res.sendFile(path.join(__dirname, 'index.html'));
 });
 
 // مسار لتحميل الفيديو
