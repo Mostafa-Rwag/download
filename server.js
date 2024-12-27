@@ -1,6 +1,3 @@
-
-
-
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
@@ -10,10 +7,11 @@ const port = process.env.PORT || 3000;
 
 app.use(express.json()); // لتحليل body JSON
 app.use(express.static(path.join(__dirname, 'downloads'))); // لتقديم الملفات الثابتة مثل الفيديو
-app.use(express.json()); // تحليل body JSON
+
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
+
 // مسار لتحميل الفيديو بالجودة
 app.get('/download', async (req, res) => {
   const { url, quality } = req.query;
@@ -112,8 +110,10 @@ function execCommand(command) {
   return new Promise((resolve, reject) => {
     exec(command, (err, stdout, stderr) => {
       if (err) {
+        console.error('Error executing command:', stderr);
         reject(stderr);
       } else {
+        console.log('Command output:', stdout);
         resolve(stdout);
       }
     });
@@ -124,7 +124,3 @@ function execCommand(command) {
 app.listen(port, () => {
   console.log(`Server is running on port ${port}`);
 });
-
-
-
- 
