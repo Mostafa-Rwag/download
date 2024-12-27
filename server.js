@@ -1,58 +1,21 @@
 const express = require('express');
-const { exec } = require('child_process');
-const { spawn } = require('child_process');
-
+const { spawn } = require('child_process'); // استيراد spawn من child_process
 const path = require('path');
 const fs = require('fs');
-const app = express();
-const port = 3000;
 
-// Middleware
+const app = express();
+const port = process.env.PORT || 3000;
+
+// Middleware to parse JSON bodies
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Serve `index.html`
+// Route to serve the index.html file
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-// Fetch video formats
-app.post('/get-formats', async (req, res) => {
-  const { url } = req.body;
-
-  if (!url) {
-    return res.status(400).json({ error: 'URL is required' });
-  }
-
-  const command = `yt-dlp -j ${url}`;
-
-  try {
-    const result = await new Promise((resolve, reject) => {
-      exec(command, (err, stdout, stderr) => {
-        if (err) {
-          reject(`Error fetching formats: ${stderr}`);
-        } else {
-          resolve(stdout);
-        }
-      });
-    });
-
-    const videoData = JSON.parse(result);
-    const formats = videoData.formats
-      .filter(format => format.ext === 'mp4')
-      .filter(format => ['144p', '240p', '360p', '480p', '720p', '1080p'].includes(format.format_note))
-      .map(format => ({
-        code: format.format_id,
-        description: `${format.format_note} (${format.ext})`,
-      }));
-
-    res.status(200).json({ formats });
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to fetch formats', message: error });
-  }
-});
-
-// Download video
+// Route to download video directly to client
 app.get('/download', (req, res) => {
   const { url, quality } = req.query;
 
@@ -60,46 +23,126 @@ app.get('/download', (req, res) => {
     return res.status(400).json({ error: 'URL and quality are required' });
   }
 
+  const tempVideoPath = path.join(__dirname, 'downloads', 'video.mp4');
+  const tempAudioPath = path.join(__dirname, 'downloads', 'audio.mp3');
+  const finalVideoPath = path.join(__dirname, 'downloads', 'final-video.mp4');
+
   try {
-    // Set response headers
-    res.setHeader('Content-Disposition', `attachment; filename="video.mp4"`);
-    res.setHeader('Content-Type', 'video/mp4');
+    // Step 1: Download the video in the requested quality (only mp4)
+    const ytProcess = spawn('yt-dlp', ['-f', quality, '-o', tempVideoPath, url]);
 
-    // Spawn yt-dlp process to stream video
-    const ytProcess = spawn('yt-dlp', ['-f', quality, '-o', '-', url]);
-
-    // Pipe the output of yt-dlp directly to the response
-    ytProcess.stdout.pipe(res);
+    ytProcess.stdout.on('data', (data) => {
+      console.log(`stdout: ${data}`);
+    });
 
     ytProcess.stderr.on('data', (data) => {
-      console.error(`Error: ${data}`);
+      console.error(`stderr: ${data}`);
     });
 
-    ytProcess.on('close', (code) => {
+    ytProcess.on('close', async (code) => {
       if (code !== 0) {
-        console.error(`yt-dlp process exited with code ${code}`);
-        res.status(500).json({ error: 'Failed to download video' });
+        return res.status(500).json({ error: 'Failed to download video' });
+      }
+
+      // Step 2: Check if the video has audio
+      const hasAudio = await checkAudioInVideo(tempVideoPath);
+
+      if (!hasAudio) {
+        // If video doesn't have audio, download audio separately
+        const audioProcess = spawn('yt-dlp', ['-f', 'bestaudio', '-o', tempAudioPath, url]);
+
+        audioProcess.stdout.on('data', (data) => {
+          console.log(`stdout (audio): ${data}`);
+        });
+
+        audioProcess.stderr.on('data', (data) => {
+          console.error(`stderr (audio): ${data}`);
+        });
+
+        audioProcess.on('close', async (audioCode) => {
+          if (audioCode !== 0) {
+            return res.status(500).json({ error: 'Failed to download audio' });
+          }
+
+          // Step 3: Merge video and audio
+          await mergeVideoAndAudio(tempVideoPath, tempAudioPath, finalVideoPath);
+
+          // Step 4: Send the final video to the client for download
+          res.download(finalVideoPath, 'video.mp4', (err) => {
+            if (err) {
+              console.error('Error sending file:', err);
+            }
+
+            // Clean up temporary files after download
+            fs.unlinkSync(tempVideoPath);
+            fs.unlinkSync(tempAudioPath);
+            fs.unlinkSync(finalVideoPath);
+          });
+        });
+      } else {
+        // If the video has audio, send it directly
+        res.download(tempVideoPath, 'video.mp4', (err) => {
+          if (err) {
+            console.error('Error sending file:', err);
+          }
+
+          // Clean up temporary files after download
+          fs.unlinkSync(tempVideoPath);
+        });
       }
     });
+
   } catch (error) {
     console.error('Error:', error);
     res.status(500).json({ error: 'Failed to download video', message: error.message });
   }
 });
 
-
-
-
-const execCommand = (command) => {
+// Function to check if video has audio
+function checkAudioInVideo(videoPath) {
   return new Promise((resolve, reject) => {
-    exec(command, (err, stdout, stderr) => {
-      if (err) reject(stderr);
-      else resolve(stdout);
+    const ffprobeProcess = spawn('ffprobe', ['-v', 'error', '-show_streams', videoPath]);
+
+    let hasAudio = false;
+
+    ffprobeProcess.stdout.on('data', (data) => {
+      if (data.toString().includes('audio')) {
+        hasAudio = true;
+      }
+    });
+
+    ffprobeProcess.on('close', (code) => {
+      if (code !== 0) {
+        return reject('Error checking audio in video');
+      }
+      resolve(hasAudio);
     });
   });
-};
+}
 
-// Start server
+// Function to merge video and audio
+function mergeVideoAndAudio(videoPath, audioPath, outputPath) {
+  return new Promise((resolve, reject) => {
+    const mergeProcess = spawn('ffmpeg', ['-i', videoPath, '-i', audioPath, '-c:v', 'copy', '-c:a', 'aac', '-strict', 'experimental', outputPath]);
+
+    mergeProcess.stdout.on('data', (data) => {
+      console.log(`stdout (merge): ${data}`);
+    });
+
+    mergeProcess.stderr.on('data', (data) => {
+      console.error(`stderr (merge): ${data}`);
+    });
+
+    mergeProcess.on('close', (code) => {
+      if (code !== 0) {
+        return reject('Error merging video and audio');
+      }
+      resolve();
+    });
+  });
+}
+
+// Start the server
 app.listen(port, () => {
   console.log(`Server running at http://localhost:${port}`);
 });
