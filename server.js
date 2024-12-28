@@ -45,7 +45,18 @@ app.post('/get-formats', async (req, res) => {
                 return { code: parts[0], description: parts.slice(1).join(' ') };
             });
 
-        res.status(200).json({ formats });
+        // Remove duplicate MP4 formats (MP4 and MP4 DASH)
+        const uniqueFormats = [];
+        const seen = new Set();
+
+        formats.forEach(format => {
+            if (!seen.has(format.description)) {
+                seen.add(format.description);
+                uniqueFormats.push(format);
+            }
+        });
+
+        res.status(200).json({ formats: uniqueFormats });
     } catch (error) {
         console.error('Error:', error);
         res.status(500).json({ error: 'Failed to fetch formats', message: error });
@@ -107,6 +118,7 @@ app.get('/download', async (req, res) => {
             fs.renameSync(mergedPath, videoPath);
         }
 
+        // Send the video as a response
         res.download(videoPath);
     } catch (error) {
         console.error('Error:', error);
