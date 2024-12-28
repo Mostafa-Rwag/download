@@ -126,7 +126,7 @@
         const videoFrame = document.getElementById('videoFrame');
 
         // Fetch available video formats when the URL input changes
-       videoUrl.addEventListener('input', async () => {
+   videoUrl.addEventListener('input', async () => {
     if (!videoUrl.value) return;
 
     try {
@@ -137,18 +137,23 @@
         });
         const data = await response.json();
 
-        // Filter and display only the basic formats, and only one format per type
+        // Filter and display only unique formats without duplicates
         qualitySelect.innerHTML = '<option value="">Select Quality</option>';
 
-        const seen = new Set(); // To track seen descriptions
+        const seen = new Set(); // To track seen formats (code + description)
+
         data.formats.forEach(format => {
-            // Filter to show only MP4 and video qualities, and avoid duplicates
-            if ((format.description.includes('MP4') || format.description.includes('p')) && !seen.has(format.description)) {
-                const option = document.createElement('option');
-                option.value = format.code;
-                option.textContent = format.description;
-                qualitySelect.appendChild(option);
-                seen.add(format.description); // Add to the set to avoid duplicates
+            // Extract only the resolution part (e.g., 720p, 1080p)
+            const resolution = format.description.match(/\d+p/); // This will match "720p", "1080p", etc.
+            if (resolution) {
+                // Only display if it's not a duplicate resolution
+                if (!seen.has(resolution[0])) {
+                    const option = document.createElement('option');
+                    option.value = format.code;
+                    option.textContent = resolution[0]; // Show only the resolution (720p, 1080p)
+                    qualitySelect.appendChild(option);
+                    seen.add(resolution[0]); // Add resolution to the set to avoid duplicates
+                }
             }
         });
 
@@ -161,6 +166,7 @@
         console.error('Error fetching formats:', error);
     }
 });
+
 
 
 
