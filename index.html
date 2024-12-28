@@ -118,50 +118,32 @@
             try {
                 progress.style.display = 'block';
                 const response = await fetch(`/download?url=${encodeURIComponent(videoUrl.value)}&quality=${encodeURIComponent(qualitySelect.value)}`);
-                if (response.ok) {
-                    const totalSize = response.headers.get('Content-Length');
-                    let downloaded = 0;
-
-                    // Update progress based on the download size
-                    const reader = response.body.getReader();
-                    const stream = new ReadableStream({
-                        start(controller) {
-                            function push() {
-                                reader.read().then(({ done, value }) => {
-                                    if (done) {
-                                        controller.close();
-                                        return;
-                                    }
-                                    downloaded += value.length;
-                                    const percent = (downloaded / totalSize) * 100;
-                                    progressBar.style.width = `${percent}%`;
-                                    controller.enqueue(value);
-                                    push();
-                                });
-                            }
-                            push();
-                        }
-                    });
-
-                    // Once download is complete, show video in iframe
-                    const blob = await new Response(stream).blob();
-                    const url = URL.createObjectURL(blob);
-                    videoFrame.src = url;
-                    videoFrame.style.display = 'block';
-                } else {
-                    const data = await response.json();
-                    errorMessage.textContent = data.error || 'Error during download.';
+                const reader = response.body.getReader();
+                const contentLength = response.headers.get('Content-Length');
+                let loaded = 0;
+                
+                const totalLength = parseInt(contentLength, 10);
+                
+                const updateProgress = () => {
+                    progressBar.style.width = `${(loaded / totalLength) * 100}%`;
+                };
+                
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    loaded += value.length;
+                    updateProgress();
                 }
             } catch (error) {
-                errorMessage.textContent = 'Error during download.';
-                console.error(error);
+                console.error('Download error:', error);
+                errorMessage.textContent = 'Failed to download video';
             }
         });
 
-        // Function to extract the video ID from the URL
+        // Utility function to extract the video ID from a YouTube URL
         function extractVideoID(url) {
-            const match = url.match(/(?:https?:\/\/(?:www\.)?youtube\.com\/(?:[^/]+\/[^\?]+|\S*?[&?]v=|(?:v|e(?:mbed)?)=)([A-Za-z0-9_-]{11}))/);
-            return match ? match[1] : '';
+            const match = url.match(/(?:https?:\/\/(?:www\.)?youtube\.com\/(?:[^/]+\/\S+\/|(?:v|e(?:mbed)?)\/?([\w\-]+)))/);
+            return match ? match[1] : null;
         }
     </script>
 </body>
