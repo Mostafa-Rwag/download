@@ -70,6 +70,20 @@
             border: none;
             margin-top: 20px;
         }
+        .progress-container {
+            width: 100%;
+            height: 20px;
+            background-color: #f3f3f3;
+            border-radius: 10px;
+            margin-top: 20px;
+            display: none; /* Hidden initially */
+        }
+        .progress-bar {
+            height: 100%;
+            background-color: #3498db;
+            border-radius: 10px;
+            width: 0%;
+        }
     </style>
 </head>
 <body>
@@ -85,6 +99,10 @@
         <div id="spinner" class="spinner"></div>
         <div id="statusMessage" class="statusMessage"></div>
 
+        <div class="progress-container" id="progressContainer">
+            <div class="progress-bar" id="progressBar"></div>
+        </div>
+
         <iframe id="videoFrame" style="display: none;"></iframe>
     </div>
 
@@ -96,6 +114,8 @@
         const spinner = document.getElementById('spinner');
         const statusMessage = document.getElementById('statusMessage');
         const videoFrame = document.getElementById('videoFrame');
+        const progressContainer = document.getElementById('progressContainer');
+        const progressBar = document.getElementById('progressBar');
 
         videoUrl.addEventListener('input', async () => {
             if (!videoUrl.value) return;
@@ -135,25 +155,33 @@
                 return;
             }
 
-            // Start showing the spinner and status message before making the request
+            // Start showing the spinner, progress bar, and status message before making the request
             spinner.style.display = 'block';
             statusMessage.style.display = 'block';
             statusMessage.textContent = 'Preparing download...';
+            progressContainer.style.display = 'block'; // Show progress bar
 
             try {
                 const response = await fetch(`/download?url=${encodeURIComponent(videoUrl.value)}&quality=${encodeURIComponent(qualitySelect.value)}`);
-                if (response.ok) {
-                    const blob = await response.blob();
-                    const url = URL.createObjectURL(blob);
 
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = 'video.mp4';
-                    document.body.appendChild(a);
-                    a.click();
-                    a.remove();
+                if (response.ok) {
+                    const contentLength = response.headers.get('Content-Length');
+                    let loaded = 0;
+
+                    // Streaming download
+                    const reader = response.body.getReader();
+                    const writer = new WritableStream({
+                        write(chunk) {
+                            loaded += chunk.length;
+                            const progress = (loaded / contentLength) * 100;
+                            progressBar.style.width = `${progress}%`;
+                        }
+                    });
+
+                    await new Response(reader, { status: response.status, statusText: response.statusText }).body.pipeTo(writer);
 
                     statusMessage.textContent = 'Download started!';
+
                 } else {
                     const data = await response.json();
                     statusMessage.classList.add('error');
