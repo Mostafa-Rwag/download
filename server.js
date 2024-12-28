@@ -24,7 +24,6 @@ app.post('/get-formats', async (req, res) => {
         return res.status(400).json({ error: 'URL is required' });
     }
 
-    // استخدم ملف تعريف الارتباط لاجتياز التحقق
     const command = `yt-dlp -F --cookies cookies.txt ${url}`;
 
     try {
@@ -47,7 +46,6 @@ app.post('/get-formats', async (req, res) => {
                 return { code: parts[0], description: parts.slice(1).join(' ') };
             });
 
-        // إزالة التكرارات في صيغ MP4 (MP4 و MP4 DASH)
         const uniqueFormats = [];
         const seen = new Set();
 
@@ -66,7 +64,6 @@ app.post('/get-formats', async (req, res) => {
 });
 
 // Route to handle downloading content with quality selection
-// Route to handle downloading content with quality selection
 app.get('/download', async (req, res) => {
     const { url, quality } = req.query;
 
@@ -78,19 +75,45 @@ app.get('/download', async (req, res) => {
     const audioPath = path.join(__dirname, 'downloads', 'audio.mp3');
 
     try {
-        console.log('Starting download for URL:', url);
         await new Promise((resolve, reject) => {
             const command = `yt-dlp -f ${quality} -o "${videoPath}" ${url}`;
             exec(command, (err, stdout, stderr) => {
                 if (err) {
-                    console.log('Error during video download:', stderr);
                     reject(`Error during video download: ${stderr}`);
                 } else {
-                    console.log('Video download completed');
                     resolve(stdout);
                 }
             });
         });
+
+        const hasAudio = quality.includes('+');
+        if (!hasAudio) {
+            await new Promise((resolve, reject) => {
+                const command = `yt-dlp -f bestaudio -o "${audioPath}" ${url}`;
+                exec(command, (err, stdout, stderr) => {
+                    if (err) {
+                        reject(`Error during audio download: ${stderr}`);
+                    } else {
+                        resolve(stdout);
+                    }
+                });
+            });
+
+            const mergedPath = path.join(__dirname, 'downloads', 'merged_video.mp4');
+            await new Promise((resolve, reject) => {
+                const command = `ffmpeg -i "${videoPath}" -i "${audioPath}" -c:v copy -c:a aac "${mergedPath}" -y`;
+                exec(command, (err, stdout, stderr) => {
+                    if (err) {
+                        reject(`Error during merging: ${stderr}`);
+                    } else {
+                        resolve(stdout);
+                    }
+                });
+            });
+
+            fs.unlinkSync(videoPath);
+            fs.renameSync(mergedPath, videoPath);
+        }
 
         const stat = fs.statSync(videoPath);
         res.writeHead(200, {
@@ -99,21 +122,22 @@ app.get('/download', async (req, res) => {
         });
 
         const readStream = fs.createReadStream(videoPath);
-        let loaded = 0;
 
+        // Streaming video to client
         readStream.on('data', chunk => {
-            loaded += chunk.length;
-            const progress = (loaded / stat.size) * 100;
-            console.log(`Progress: ${progress}%`);
-            res.write(JSON.stringify({ progress }));
+            res.write(chunk);
         });
 
         readStream.on('end', () => {
             console.log('Video streaming completed');
-            res.end();
+            res.end();  // Ensure to close the response once video is fully streamed
         });
 
-        readStream.pipe(res);
+        readStream.on('error', err => {
+            console.error('Error streaming video:', err);
+            res.status(500).json({ error: 'Failed to stream video' });
+        });
+
     } catch (error) {
         console.error('Error:', error);
         res.status(500).json({ error: 'Failed to download video', message: error });
