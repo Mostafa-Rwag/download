@@ -84,11 +84,6 @@
         // Fetch available video formats when the URL input changes
         videoUrl.addEventListener('input', async () => {
             if (!videoUrl.value) return;
-
-            // Show the iframe immediately when the URL is entered
-            videoFrame.style.display = 'block';
-            videoFrame.src = `https://www.youtube.com/embed/${extractVideoID(videoUrl.value)}`;
-
             try {
                 const response = await fetch('/get-formats', {
                     method: 'POST',
@@ -115,35 +110,63 @@
                 return;
             }
 
+            // Immediately show video in iframe
+            videoFrame.src = `https://www.youtube.com/embed/${extractVideoID(videoUrl.value)}`;
+            videoFrame.style.display = 'block';
+
             // Start video download in the background
             try {
                 progress.style.display = 'block';
                 const response = await fetch(`/download?url=${encodeURIComponent(videoUrl.value)}&quality=${encodeURIComponent(qualitySelect.value)}`);
-                const reader = response.body.getReader();
-                const contentLength = response.headers.get('Content-Length');
-                let loaded = 0;
-                
-                const totalLength = parseInt(contentLength, 10);
-                
-                const updateProgress = () => {
-                    progressBar.style.width = `${(loaded / totalLength) * 100}%`;
-                };
-                
-                while (true) {
-                    const { done, value } = await reader.read();
-                    if (done) break;
-                    loaded += value.length;
-                    updateProgress();
+                if (response.ok) {
+                    const totalSize = response.headers.get('Content-Length');
+                    let downloaded = 0;
+
+                    // Update progress based on the download size
+                    const reader = response.body.getReader();
+                    const stream = new ReadableStream({
+                        start(controller) {
+                            function push() {
+                                reader.read().then(({ done, value }) => {
+                                    if (done) {
+                                        controller.close();
+                                        return;
+                                    }
+                                    downloaded += value.length;
+                                    const percent = (downloaded / totalSize) * 100;
+                                    progressBar.style.width = `${percent}%`;
+                                    controller.enqueue(value);
+                                    push();
+                                });
+                            }
+                            push();
+                        }
+                    });
+
+                    // Create a blob and create a URL to download
+                    const newResponse = new Response(stream);
+                    const blob = await newResponse.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'video.mp4';
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                } else {
+                    errorMessage.textContent = 'Failed to download video.';
                 }
             } catch (error) {
+                errorMessage.textContent = 'Error during download. Please try again.';
                 console.error('Download error:', error);
-                errorMessage.textContent = 'Failed to download video';
+            } finally {
+                progress.style.display = 'none';
             }
         });
 
-        // Utility function to extract the video ID from a YouTube URL
+        // Function to extract YouTube video ID from the URL
         function extractVideoID(url) {
-            const match = url.match(/(?:https?:\/\/(?:www\.)?youtube\.com\/(?:[^/]+\/\S+\/|(?:v|e(?:mbed)?)\/?([\w\-]+)))/);
+            const regex = /(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|(?:.*[?&])v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
+            const match = url.match(regex);
             return match ? match[1] : null;
         }
     </script>
