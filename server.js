@@ -45,12 +45,29 @@ app.post('/get-formats', async (req, res) => {
                 return { code: parts[0], description: parts.slice(1).join(' ') };
             });
 
-        res.status(200).json({ formats });
+        // تصفية الجودات بناءً على قيم الدقة
+        const resolutions = [480, 640, 920, 1024, 1440, 2100];
+        const selectedFormats = formats.filter(format => {
+            const match = format.description.match(/(\d+)p/);
+            return match && resolutions.includes(parseInt(match[1]));
+        });
+
+        // إضافة الجودات الأعلى
+        const higherFormats = formats.filter(format => {
+            const match = format.description.match(/(\d+)p/);
+            return match && parseInt(match[1]) > 2100;
+        });
+
+        // دمج الجودات المحددة والجودات الأعلى
+        const finalFormats = [...selectedFormats, ...higherFormats];
+
+        res.status(200).json({ formats: finalFormats });
     } catch (error) {
         console.error('Error:', error);
         res.status(500).json({ error: 'Failed to fetch formats', message: error });
     }
 });
+
 
 // Route to handle downloading content with quality selection
 app.get('/download', async (req, res) => {
