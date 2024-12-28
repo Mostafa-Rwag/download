@@ -13,63 +13,47 @@
             align-items: center;
             height: 100vh;
             margin: 0;
-            background-color: #f7f7f7;
+            background-color: #f4f4f9;
         }
         .container {
             text-align: center;
-            padding: 30px;
-            background-color: #ffffff;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
-            border-radius: 15px;
-            width: 90%;
-            max-width: 600px;
+            padding: 20px;
+            background-color: white;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+            border-radius: 10px;
         }
         input, select, button {
             margin: 10px 0;
-            padding: 15px;
+            padding: 10px;
             width: 100%;
-            border-radius: 8px;
+            border-radius: 5px;
             border: 1px solid #ccc;
-            font-size: 16px;
         }
         button {
             background-color: #007bff;
             color: white;
             cursor: pointer;
-            font-weight: bold;
         }
         button:hover {
             background-color: #0056b3;
         }
         .progress-bar {
             width: 100%;
-            height: 8px;
-            background-color: #e0e0e0;
+            height: 5px;
+            background-color: #ccc;
             margin-top: 20px;
-            border-radius: 10px;
-            display: none;
         }
         .progress-bar div {
             height: 100%;
             width: 0;
-            background-color: #28a745;
-            border-radius: 10px;
+            background-color: #007bff;
         }
         iframe {
             width: 100%;
             max-width: 600px;
-            height: 315px;
             border-radius: 10px;
             margin-top: 20px;
-            display: none;
-        }
-        select {
-            font-size: 16px;
-            padding: 12px;
-        }
-        .error {
-            color: red;
-            font-weight: bold;
+            display: none; /* Start hidden */
         }
     </style>
 </head>
@@ -81,9 +65,9 @@
             <option value="">Select Quality</option>
         </select>
         <button id="downloadButton">Download Video</button>
-        <div id="errorMessage" class="error"></div>
-        <div id="progress" class="progress-bar">
-            <div id="progressBar"></div>
+        <div id="errorMessage" style="color: red;"></div>
+        <div id="progress" class="progress-bar" style="display: none;">
+            <div id="progressBar" style="width: 0;"></div>
         </div>
         <iframe id="videoFrame" src="" frameborder="0"></iframe>
     </div>
@@ -139,14 +123,28 @@
                     let downloaded = 0;
 
                     // Update progress based on the download size
-                    response.body.on('data', (chunk) => {
-                        downloaded += chunk.length;
-                        const percent = (downloaded / totalSize) * 100;
-                        progressBar.style.width = `${percent}%`;
+                    const reader = response.body.getReader();
+                    const stream = new ReadableStream({
+                        start(controller) {
+                            function push() {
+                                reader.read().then(({ done, value }) => {
+                                    if (done) {
+                                        controller.close();
+                                        return;
+                                    }
+                                    downloaded += value.length;
+                                    const percent = (downloaded / totalSize) * 100;
+                                    progressBar.style.width = `${percent}%`;
+                                    controller.enqueue(value);
+                                    push();
+                                });
+                            }
+                            push();
+                        }
                     });
 
                     // Once download is complete, show video in iframe
-                    const blob = await response.blob();
+                    const blob = await new Response(stream).blob();
                     const url = URL.createObjectURL(blob);
                     videoFrame.src = url;
                     videoFrame.style.display = 'block';
