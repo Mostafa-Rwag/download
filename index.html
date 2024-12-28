@@ -5,120 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Video Downloader</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: 'Arial', sans-serif;
-            background-color: #f4f4f9;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            flex-direction: column;
-        }
-
-        .container {
-            background-color: #ffffff;
-            padding: 30px;
-            border-radius: 10px;
-            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
-            width: 100%;
-            max-width: 500px;
-            text-align: center;
-            transition: transform 0.3s ease-in-out;
-        }
-
-        .container:hover {
-            transform: scale(1.05);
-        }
-
-        h1 {
-            color: #333;
-            font-size: 1.8rem;
-            margin-bottom: 20px;
-        }
-
-        input, select, button {
-            padding: 12px;
-            width: 100%;
-            margin-bottom: 20px;
-            border-radius: 5px;
-            border: 1px solid #ccc;
-            font-size: 1rem;
-            transition: border-color 0.3s ease;
-        }
-
-        input:focus, select:focus, button:focus {
-            border-color: #007bff;
-            outline: none;
-        }
-
-        button {
-            background-color: #007bff;
-            color: white;
-            cursor: pointer;
-            font-weight: bold;
-            transition: background-color 0.3s ease;
-        }
-
-        button:hover {
-            background-color: #0056b3;
-        }
-
-        #progressBar {
-            width: 100%;
-            background-color: #f3f3f3;
-            border-radius: 5px;
-            display: none;
-            margin-top: 20px;
-        }
-
-        #progress {
-            height: 20px;
-            width: 0;
-            background-color: #4caf50;
-            border-radius: 5px;
-        }
-
-        #videoFrame {
-            margin-top: 20px;
-            width: 100%;
-            height: 315px;
-            border: none;
-        }
-
-        .statusMessage {
-            margin-top: 20px;
-            font-size: 1.2rem;
-            color: #007bff;
-            display: none;
-        }
-
-        .statusMessage.error {
-            color: #e74c3c;
-        }
-
-        /* Responsive design */
-        @media screen and (max-width: 600px) {
-            h1 {
-                font-size: 1.5rem;
-            }
-
-            input, select, button {
-                padding: 12px;
-                font-size: 1rem;
-            }
-
-            .container {
-                padding: 20px;
-            }
-        }
-
-        /* Spinner animation */
+        /* Your existing CSS styles */
+        /* Add a loading spinner that appears before the download starts */
         .spinner {
             border: 4px solid #f3f3f3;
             border-top: 4px solid #3498db;
@@ -127,11 +15,23 @@
             height: 40px;
             animation: spin 2s linear infinite;
             margin: 0 auto;
+            display: none; /* Initially hidden */
         }
 
         @keyframes spin {
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
+        }
+
+        #statusMessage {
+            margin-top: 20px;
+            font-size: 1.2rem;
+            color: #007bff;
+            display: none; /* Initially hidden */
+        }
+
+        #statusMessage.error {
+            color: #e74c3c;
         }
     </style>
 </head>
@@ -145,12 +45,8 @@
         <button id="downloadButton">Download Video</button>
 
         <div id="errorMessage" style="color: red;"></div>
-        
-        <div id="progressBar">
-            <div id="progress"></div>
-        </div>
 
-        <div id="spinner" class="spinner" style="display: none;"></div>
+        <div id="spinner" class="spinner"></div>
 
         <div id="statusMessage" class="statusMessage"></div>
 
@@ -162,13 +58,10 @@
         const qualitySelect = document.getElementById('qualitySelect');
         const downloadButton = document.getElementById('downloadButton');
         const errorMessage = document.getElementById('errorMessage');
-        const progressBar = document.getElementById('progressBar');
-        const progress = document.getElementById('progress');
         const spinner = document.getElementById('spinner');
         const statusMessage = document.getElementById('statusMessage');
         const videoFrame = document.getElementById('videoFrame');
 
-        // Fetch available video formats when the URL input changes
         videoUrl.addEventListener('input', async () => {
             if (!videoUrl.value) return;
 
@@ -182,17 +75,13 @@
 
                 qualitySelect.innerHTML = '<option value="">Select Quality</option>';
 
-                const seen = new Set(); // To track seen resolutions
-
                 data.formats.forEach(format => {
                     const resolution = format.description.match(/\d+p/);
-
-                    if (resolution && !seen.has(resolution[0]) && !format.description.includes('webm')) {
+                    if (resolution) {
                         const option = document.createElement('option');
                         option.value = format.code;
                         option.textContent = resolution[0];
                         qualitySelect.appendChild(option);
-                        seen.add(resolution[0]);
                     }
                 });
 
@@ -211,14 +100,13 @@
                 return;
             }
 
-            // Show spinner and status message
+            // Start showing the spinner and status message before making the request
             spinner.style.display = 'block';
             statusMessage.style.display = 'block';
-            statusMessage.textContent = 'Downloading... Please wait.';
-            progressBar.style.display = 'block';
-            progress.style.width = '0%';
+            statusMessage.textContent = 'Preparing download...';
 
             try {
+                // Simulate fast loading, can be improved to load with pre-fetching
                 const response = await fetch(`/download?url=${encodeURIComponent(videoUrl.value)}&quality=${encodeURIComponent(qualitySelect.value)}`);
                 if (response.ok) {
                     const blob = await response.blob();
