@@ -66,7 +66,7 @@ app.get('/download', async (req, res) => {
     try {
         // Download video-only or audio if necessary
         await new Promise((resolve, reject) => {
-            const command = `yt-dlp -f ${quality} -o "${videoPath}" ${url}`;
+            const command = `yt-dlp -f bestvideo+bestaudio -o "${videoPath}" ${url}`;
             exec(command, (err, stdout, stderr) => {
                 if (err) {
                     reject(`Error during video download: ${stderr}`);
