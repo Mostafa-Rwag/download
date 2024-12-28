@@ -8,15 +8,15 @@ const port = 3000;
 // Middleware to parse JSON bodies
 app.use(express.json());
 
-// Serve static files (e.g., HTML, CSS, JS)
+// Serve static files
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Route to serve the index.html file at the root URL
+// Route to serve the index.html file
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-// Route to get video formats (quality options)
+// Route to get video formats (excluding WebM)
 app.post('/get-formats', async (req, res) => {
     const { url } = req.body;
 
@@ -25,6 +25,7 @@ app.post('/get-formats', async (req, res) => {
     }
 
     const command = `yt-dlp -F ${url}`;
+
     try {
         const result = await new Promise((resolve, reject) => {
             exec(command, (err, stdout, stderr) => {
@@ -38,7 +39,7 @@ app.post('/get-formats', async (req, res) => {
 
         const formats = result
             .split('\n')
-            .filter(line => line.trim() && !line.startsWith('Format code'))
+            .filter(line => line.trim() && !line.startsWith('Format code') && !line.includes('webm'))
             .map(line => {
                 const parts = line.trim().split(/\s{2,}/);
                 return { code: parts[0], description: parts.slice(1).join(' ') };
@@ -59,52 +60,54 @@ app.get('/download', async (req, res) => {
         return res.status(400).json({ error: 'URL and quality are required' });
     }
 
-    const downloadDir = path.join(__dirname, 'downloads');
-    const videoPath = path.join(downloadDir, 'video.mp4');
-    const audioPath = path.join(downloadDir, 'audio.mp4');
-    const finalPath = path.join(downloadDir, 'final_video.mp4');
+    const videoPath = path.join(__dirname, 'downloads', 'video.mp4');
+    const audioPath = path.join(__dirname, 'downloads', 'audio.mp3');
 
     try {
-        // Ensure downloads directory exists
-        if (!fs.existsSync(downloadDir)) {
-            fs.mkdirSync(downloadDir);
-        }
-
-        // Download the selected video format
-        const videoCommand = `yt-dlp -f ${quality} -o "${videoPath}" ${url}`;
+        // Download video-only or audio if necessary
         await new Promise((resolve, reject) => {
-            exec(videoCommand, (err, stdout, stderr) => {
-                if (err) reject(`Error downloading video: ${stderr}`);
-                else resolve(stdout);
+            const command = `yt-dlp -f ${quality} -o "${videoPath}" ${url}`;
+            exec(command, (err, stdout, stderr) => {
+                if (err) {
+                    reject(`Error during video download: ${stderr}`);
+                } else {
+                    resolve(stdout);
+                }
             });
         });
 
-        // Check if video is "video only"
-        const isVideoOnly = quality.includes('video');
-
-        if (isVideoOnly) {
-            // Download the best audio
-            const audioCommand = `yt-dlp -f bestaudio -o "${audioPath}" ${url}`;
+        // Check if video has audio; if not, download the best audio format
+        const hasAudio = quality.includes('+');
+        if (!hasAudio) {
             await new Promise((resolve, reject) => {
-                exec(audioCommand, (err, stdout, stderr) => {
-                    if (err) reject(`Error downloading audio: ${stderr}`);
-                    else resolve(stdout);
+                const command = `yt-dlp -f bestaudio -o "${audioPath}" ${url}`;
+                exec(command, (err, stdout, stderr) => {
+                    if (err) {
+                        reject(`Error during audio download: ${stderr}`);
+                    } else {
+                        resolve(stdout);
+                    }
                 });
             });
 
-            // Merge video and audio using FFmpeg
-            const mergeCommand = `ffmpeg -i "${videoPath}" -i "${audioPath}" -c:v copy -c:a aac "${finalPath}"`;
+            // Merge video and audio
+            const mergedPath = path.join(__dirname, 'downloads', 'merged_video.mp4');
             await new Promise((resolve, reject) => {
-                exec(mergeCommand, (err, stdout, stderr) => {
-                    if (err) reject(`Error merging video and audio: ${stderr}`);
-                    else resolve(stdout);
+                const command = `ffmpeg -i "${videoPath}" -i "${audioPath}" -c:v copy -c:a aac "${mergedPath}" -y`;
+                exec(command, (err, stdout, stderr) => {
+                    if (err) {
+                        reject(`Error during merging: ${stderr}`);
+                    } else {
+                        resolve(stdout);
+                    }
                 });
             });
 
-            res.download(finalPath); // Send the final merged video to the client
-        } else {
-            res.download(videoPath); // Send the video directly if it has audio
+            fs.unlinkSync(videoPath);
+            fs.renameSync(mergedPath, videoPath);
         }
+
+        res.download(videoPath);
     } catch (error) {
         console.error('Error:', error);
         res.status(500).json({ error: 'Failed to download video', message: error });
