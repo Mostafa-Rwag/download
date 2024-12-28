@@ -37,13 +37,6 @@
         button:hover {
             background-color: #0056b3;
         }
-        iframe {
-            margin-top: 20px;
-            width: 100%;
-            max-width: 600px;
-            border-radius: 10px;
-            display: none; /* Hide the iframe until the download is complete */
-        }
     </style>
 </head>
 <body>
@@ -55,7 +48,6 @@
         </select>
         <button id="downloadButton">Download Video</button>
         <div id="errorMessage" style="color: red;"></div>
-        <iframe id="videoIframe" width="600" height="400" allowfullscreen></iframe>
     </div>
 
     <script>
@@ -63,7 +55,6 @@
         const qualitySelect = document.getElementById('qualitySelect');
         const downloadButton = document.getElementById('downloadButton');
         const errorMessage = document.getElementById('errorMessage');
-        const videoIframe = document.getElementById('videoIframe');
 
         // Fetch available video formats when the URL input changes
         videoUrl.addEventListener('input', async () => {
@@ -99,18 +90,13 @@
                 if (response.ok) {
                     const blob = await response.blob();
                     const url = URL.createObjectURL(blob);
-
                     // Trigger the download of the video
                     const a = document.createElement('a');
                     a.href = url;
-                    a.download = 'video.mp4';
+                    a.download = 'video.mp4'; // Optional: change the filename here if desired
                     document.body.appendChild(a);
                     a.click();
                     a.remove();
-
-                    // Display the video in iframe
-                    videoIframe.src = url;
-                    videoIframe.style.display = 'block';
                 } else {
                     const data = await response.json();
                     errorMessage.textContent = data.error || 'Error during download.';
