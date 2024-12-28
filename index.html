@@ -1,140 +1,133 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>YouTube Video Downloader</title>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      margin: 0;
-      padding: 0;
-      background-color: #f4f4f9;
-      text-align: center;
-    }
-
-    h1 {
-      color: #333;
-      margin-top: 20px;
-    }
-
-    form, #video-preview, .download-section {
-      margin: 20px auto;
-      max-width: 600px;
-      padding: 15px;
-      background: #fff;
-      border-radius: 10px;
-      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-    }
-
-    input[type="url"] {
-      width: 80%;
-      padding: 10px;
-      margin-bottom: 10px;
-      border: 1px solid #ccc;
-      border-radius: 5px;
-    }
-
-    button {
-      padding: 10px 20px;
-      background: #28a745;
-      color: white;
-      border: none;
-      border-radius: 5px;
-      cursor: pointer;
-    }
-
-    button:hover {
-      background: #218838;
-    }
-
-    select {
-      width: 80%;
-      padding: 10px;
-      margin: 10px 0;
-      border: 1px solid #ccc;
-      border-radius: 5px;
-    }
-
-    iframe {
-      width: 100%;
-      height: 315px;
-      border: none;
-      margin-top: 10px;
-    }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Downloader</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f4f4f9;
+        }
+        .container {
+            text-align: center;
+            padding: 30px;
+            background-color: white;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+            border-radius: 10px;
+        }
+        input[type="url"] {
+            padding: 10px;
+            width: 300px;
+            margin-bottom: 10px;
+            border-radius: 5px;
+            border: 1px solid #ccc;
+        }
+        select {
+            padding: 10px;
+            width: 320px;
+            margin-bottom: 20px;
+            border-radius: 5px;
+            border: 1px solid #ccc;
+        }
+        button {
+            padding: 10px 20px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        .error {
+            color: red;
+        }
+        iframe {
+            margin-top: 20px;
+            width: 600px;
+            height: 400px;
+            border: none;
+        }
+    </style>
 </head>
 <body>
-  <h1>YouTube Video Downloader</h1>
-  <form id="fetch-form">
-    <input type="url" id="url" placeholder="Enter YouTube URL" required />
-    <button type="submit">Fetch Formats</button>
-  </form>
+    <div class="container">
+        <h1>Video Downloader</h1>
+        <form id="downloadForm">
+            <input type="url" id="videoUrl" placeholder="Enter Video URL" required><br><br>
+            <select id="qualitySelect" required>
+                <option value="">Select Quality</option>
+            </select><br><br>
+            <button type="submit">Download Video</button>
+        </form>
+        <div class="error" id="errorMessage"></div>
+        <iframe id="videoFrame" src=""></iframe>
+    </div>
 
-  <div id="video-preview" style="display: none;">
-    <h2>Video Preview</h2>
-    <iframe id="video-frame"></iframe>
-  </div>
+    <script>
+        document.getElementById('downloadForm').addEventListener('submit', async (event) => {
+            event.preventDefault();
 
-  <div class="download-section" style="display: none;">
-    <h2>Select Quality</h2>
-    <select id="quality"></select>
-    <button id="download-button">Download</button>
-  </div>
+            const url = document.getElementById('videoUrl').value;
+            const quality = document.getElementById('qualitySelect').value;
 
-  <script>
-    const fetchForm = document.getElementById('fetch-form');
-    const urlInput = document.getElementById('url');
-    const qualitySelect = document.getElementById('quality');
-    const videoPreview = document.getElementById('video-preview');
-    const videoFrame = document.getElementById('video-frame');
-    const downloadSection = document.querySelector('.download-section');
-    const downloadButton = document.getElementById('download-button');
+            if (!url || !quality) {
+                document.getElementById('errorMessage').textContent = 'Please provide a valid URL and select a quality.';
+                return;
+            }
 
-    fetchForm.addEventListener('submit', async (e) => {
-      e.preventDefault();
-
-      const url = urlInput.value;
-      if (!url) return;
-
-      try {
-        const videoId = new URL(url).searchParams.get("v");
-        videoFrame.src = `https://www.youtube.com/embed/${videoId}`;
-        videoPreview.style.display = 'block';
-
-        const response = await fetch('/get-formats', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ url }),
+            try {
+                const response = await fetch(`/download?url=${encodeURIComponent(url)}&quality=${encodeURIComponent(quality)}`);
+                if (response.ok) {
+                    // Display the video in the iframe
+                    const blob = await response.blob();
+                    const videoUrl = URL.createObjectURL(blob);
+                    document.getElementById('videoFrame').src = videoUrl;
+                } else {
+                    const data = await response.json();
+                    document.getElementById('errorMessage').textContent = data.error || 'Error occurred during download.';
+                }
+            } catch (error) {
+                document.getElementById('errorMessage').textContent = 'Error occurred during download.';
+                console.error(error);
+            }
         });
 
-        const data = await response.json();
-        qualitySelect.innerHTML = '';
+        async function fetchFormats() {
+            const url = document.getElementById('videoUrl').value;
+            if (!url) return;
 
-        if (data.formats.length > 0) {
-          data.formats.forEach(format => {
-            const option = document.createElement('option');
-            option.value = format.code;
-            option.textContent = format.description;
-            qualitySelect.appendChild(option);
-          });
-          downloadSection.style.display = 'block';
-        } else {
-          alert('No standard qualities found.');
+            try {
+                const response = await fetch('/get-formats', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url })
+                });
+
+                const data = await response.json();
+                const qualitySelect = document.getElementById('qualitySelect');
+                qualitySelect.innerHTML = '<option value="">Select Quality</option>'; // Clear previous options
+
+                data.formats.forEach(format => {
+                    const option = document.createElement('option');
+                    option.value = format.code;
+                    option.textContent = format.description;
+                    qualitySelect.appendChild(option);
+                });
+            } catch (error) {
+                console.error('Error fetching formats:', error);
+            }
         }
-      } catch (error) {
-        alert('Failed to fetch formats');
-      }
-    });
 
-    downloadButton.addEventListener('click', () => {
-      const quality = qualitySelect.value;
-      const url = urlInput.value;
-
-      if (!quality || !url) return;
-
-      window.location.href = `/download?url=${encodeURIComponent(url)}&quality=${quality}`;
-    });
-  </script>
+        // Fetch formats when the URL input is filled
+        document.getElementById('videoUrl').addEventListener('input', fetchFormats);
+    </script>
 </body>
 </html>
