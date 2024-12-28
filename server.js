@@ -11,6 +11,12 @@ app.use(express.json());
 // Serve static files
 app.use(express.static(path.join(__dirname, 'public')));
 
+// Ensure 'downloads' directory exists
+const downloadsDir = path.join(__dirname, 'downloads');
+if (!fs.existsSync(downloadsDir)) {
+    fs.mkdirSync(downloadsDir);
+}
+
 // Route to serve the index.html file
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
@@ -60,8 +66,8 @@ app.get('/download', async (req, res) => {
         return res.status(400).json({ error: 'URL and quality are required' });
     }
 
-    const videoPath = path.join(__dirname, 'downloads', 'video.mp4');
-    const audioPath = path.join(__dirname, 'downloads', 'audio.mp3');
+    const videoPath = path.join(downloadsDir, 'video.mp4');
+    const audioPath = path.join(downloadsDir, 'audio.mp3');
 
     try {
         // Download video-only or audio if necessary
@@ -90,21 +96,25 @@ app.get('/download', async (req, res) => {
                 });
             });
 
-            // Merge video and audio
-            const mergedPath = path.join(__dirname, 'downloads', 'merged_video.mp4');
-            await new Promise((resolve, reject) => {
-                const command = `ffmpeg -i "${videoPath}" -i "${audioPath}" -c:v copy -c:a aac "${mergedPath}" -y`;
-                exec(command, (err, stdout, stderr) => {
-                    if (err) {
-                        reject(`Error during merging: ${stderr}`);
-                    } else {
-                        resolve(stdout);
-                    }
+            // Check if files exist before merging
+            if (fs.existsSync(videoPath) && fs.existsSync(audioPath)) {
+                const mergedPath = path.join(downloadsDir, 'merged_video.mp4');
+                await new Promise((resolve, reject) => {
+                    const command = `ffmpeg -i "${videoPath}" -i "${audioPath}" -c:v copy -c:a aac "${mergedPath}" -y`;
+                    exec(command, (err, stdout, stderr) => {
+                        if (err) {
+                            reject(`Error during merging: ${stderr}`);
+                        } else {
+                            resolve(stdout);
+                        }
+                    });
                 });
-            });
 
-            fs.unlinkSync(videoPath);
-            fs.renameSync(mergedPath, videoPath);
+                fs.unlinkSync(videoPath);
+                fs.renameSync(mergedPath, videoPath);
+            } else {
+                throw new Error('Video or audio file not found');
+            }
         }
 
         res.download(videoPath);
