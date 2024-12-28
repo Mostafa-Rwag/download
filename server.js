@@ -60,6 +60,7 @@ app.post('/get-formats', async (req, res) => {
 });
 
 // Route to handle downloading content with quality selection
+// Route to handle downloading content with quality selection
 app.get('/download', async (req, res) => {
     const { url, quality } = req.query;
 
@@ -68,8 +69,16 @@ app.get('/download', async (req, res) => {
     }
 
     const videoPath = path.join(__dirname, 'downloads', 'video.mp4');
+    const audioPath = path.join(__dirname, 'downloads', 'audio.mp3');
 
     try {
+        // Ensure the downloads directory exists
+        const downloadDir = path.join(__dirname, 'downloads');
+        if (!fs.existsSync(downloadDir)) {
+            fs.mkdirSync(downloadDir);
+        }
+
+        // Download video-only or audio if necessary
         await new Promise((resolve, reject) => {
             const command = `yt-dlp -f ${quality} -o "${videoPath}" ${url}`;
             exec(command, (err, stdout, stderr) => {
@@ -81,6 +90,38 @@ app.get('/download', async (req, res) => {
             });
         });
 
+        // Check if video has audio; if not, download the best audio format
+        const hasAudio = quality.includes('+');
+        if (!hasAudio) {
+            await new Promise((resolve, reject) => {
+                const command = `yt-dlp -f bestaudio -o "${audioPath}" ${url}`;
+                exec(command, (err, stdout, stderr) => {
+                    if (err) {
+                        reject(`Error during audio download: ${stderr}`);
+                    } else {
+                        resolve(stdout);
+                    }
+                });
+            });
+
+            // Merge video and audio
+            const mergedPath = path.join(__dirname, 'downloads', 'merged_video.mp4');
+            await new Promise((resolve, reject) => {
+                const command = `ffmpeg -i "${videoPath}" -i "${audioPath}" -c:v copy -c:a aac "${mergedPath}" -y`;
+                exec(command, (err, stdout, stderr) => {
+                    if (err) {
+                        reject(`Error during merging: ${stderr}`);
+                    } else {
+                        resolve(stdout);
+                    }
+                });
+            });
+
+            fs.unlinkSync(videoPath);
+            fs.renameSync(mergedPath, videoPath);
+        }
+
+        // Send video file for download
         res.download(videoPath, 'video.mp4', (err) => {
             if (err) {
                 console.error('Error during file download:', err);
@@ -92,6 +133,7 @@ app.get('/download', async (req, res) => {
         res.status(500).json({ error: 'Failed to download video', message: error });
     }
 });
+
 
 // Start the server
 app.listen(port, () => {
