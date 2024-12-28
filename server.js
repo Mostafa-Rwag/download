@@ -128,10 +128,7 @@ app.get('/download', async (req, res) => {
             res.write(chunk);
         });
 
-        readStream.on('end', () => {
-            console.log('Video streaming completed');
-            res.end();  // Ensure to close the response once video is fully streamed
-        });
+        
 
         readStream.on('error', err => {
             console.error('Error streaming video:', err);
