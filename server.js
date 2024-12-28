@@ -24,12 +24,14 @@ app.post('/get-formats', async (req, res) => {
         return res.status(400).json({ error: 'URL is required' });
     }
 
-    const command = `yt-dlp -F ${url}`;
+    // استخدم ملف تعريف الارتباط لاجتياز التحقق
+    const command = `yt-dlp -F --cookies cookies.txt ${url}`;
 
     try {
         const result = await new Promise((resolve, reject) => {
             exec(command, (err, stdout, stderr) => {
                 if (err) {
+                    console.error(`Error executing yt-dlp: ${stderr}`);
                     reject(`Error fetching formats: ${stderr}`);
                 } else {
                     resolve(stdout);
@@ -45,7 +47,7 @@ app.post('/get-formats', async (req, res) => {
                 return { code: parts[0], description: parts.slice(1).join(' ') };
             });
 
-        // Remove duplicate MP4 formats (MP4 and MP4 DASH)
+        // إزالة التكرارات في صيغ MP4 (MP4 و MP4 DASH)
         const uniqueFormats = [];
         const seen = new Set();
 
@@ -59,9 +61,10 @@ app.post('/get-formats', async (req, res) => {
         res.status(200).json({ formats: uniqueFormats });
     } catch (error) {
         console.error('Error:', error);
-        res.status(500).json({ error: 'Failed to fetch formats', message: error });
+        res.status(500).json({ error: 'Failed to fetch formats', message: error.message });
     }
 });
+
 
 // Route to handle downloading content with quality selection
 app.get('/download', async (req, res) => {
