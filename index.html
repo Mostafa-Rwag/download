@@ -127,6 +127,7 @@
 
         // Fetch available video formats when the URL input changes
         // Fetch available video formats when the URL input changes
+// Fetch available video formats when the URL input changes
 videoUrl.addEventListener('input', async () => {
     if (!videoUrl.value) return;
 
@@ -145,10 +146,13 @@ videoUrl.addEventListener('input', async () => {
         data.formats.forEach(format => {
             // Only show formats that contain the common qualities
             if (commonQualities.some(quality => format.description.includes(quality))) {
-                const option = document.createElement('option');
-                option.value = format.code;
-                option.textContent = format.description;
-                qualitySelect.appendChild(option);
+                const quality = format.description.match(/\d+p/); // Extract the quality (like 360p, 720p)
+                if (quality) {
+                    const option = document.createElement('option');
+                    option.value = format.code;
+                    option.textContent = quality[0]; // Display only the quality (e.g., 360p, 720p)
+                    qualitySelect.appendChild(option);
+                }
             }
         });
 
@@ -161,6 +165,7 @@ videoUrl.addEventListener('input', async () => {
         console.error('Error fetching formats:', error);
     }
 });
+
 
 
                
