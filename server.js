@@ -70,6 +70,7 @@ app.post('/get-formats', async (req, res) => {
 
 
 // Route to handle downloading content with quality selection
+// Route to handle downloading content with quality selection
 app.get('/download', async (req, res) => {
     const { url, quality } = req.query;
 
@@ -81,7 +82,7 @@ app.get('/download', async (req, res) => {
     const audioPath = path.join(__dirname, 'downloads', 'audio.mp3');
 
     try {
-        // Download video and audio simultaneously (if possible)
+        // Download video-only or audio if necessary
         await new Promise((resolve, reject) => {
             const command = `yt-dlp -f ${quality} -o "${videoPath}" ${url}`;
             exec(command, (err, stdout, stderr) => {
@@ -93,7 +94,7 @@ app.get('/download', async (req, res) => {
             });
         });
 
-        // If the video doesn't have audio, download it separately
+        // Check if video has audio; if not, download the best audio format
         const hasAudio = quality.includes('+');
         if (!hasAudio) {
             await new Promise((resolve, reject) => {
@@ -124,7 +125,13 @@ app.get('/download', async (req, res) => {
             fs.renameSync(mergedPath, videoPath);
         }
 
-        res.download(videoPath);
+        // Send video file for download
+        res.download(videoPath, 'video.mp4', (err) => {
+            if (err) {
+                console.error('Error during file download:', err);
+                res.status(500).send('Error during download');
+            }
+        });
     } catch (error) {
         console.error('Error:', error);
         res.status(500).json({ error: 'Failed to download video', message: error });
