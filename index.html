@@ -37,6 +37,24 @@
         button:hover {
             background-color: #0056b3;
         }
+        .progress-bar {
+            width: 100%;
+            height: 5px;
+            background-color: #ccc;
+            margin-top: 20px;
+        }
+        .progress-bar div {
+            height: 100%;
+            width: 0;
+            background-color: #007bff;
+        }
+        iframe {
+            width: 100%;
+            max-width: 600px;
+            border-radius: 10px;
+            margin-top: 20px;
+            display: none; /* Start hidden */
+        }
     </style>
 </head>
 <body>
@@ -48,6 +66,10 @@
         </select>
         <button id="downloadButton">Download Video</button>
         <div id="errorMessage" style="color: red;"></div>
+        <div id="progress" class="progress-bar" style="display: none;">
+            <div id="progressBar" style="width: 0;"></div>
+        </div>
+        <iframe id="videoFrame" src="" frameborder="0"></iframe>
     </div>
 
     <script>
@@ -55,6 +77,9 @@
         const qualitySelect = document.getElementById('qualitySelect');
         const downloadButton = document.getElementById('downloadButton');
         const errorMessage = document.getElementById('errorMessage');
+        const progress = document.getElementById('progress');
+        const progressBar = document.getElementById('progressBar');
+        const videoFrame = document.getElementById('videoFrame');
 
         // Fetch available video formats when the URL input changes
         videoUrl.addEventListener('input', async () => {
@@ -85,18 +110,30 @@
                 return;
             }
 
+            // Immediately show video in iframe
+            videoFrame.src = `https://www.youtube.com/embed/${extractVideoID(videoUrl.value)}`;
+            videoFrame.style.display = 'block';
+
+            // Start video download in the background
             try {
+                progress.style.display = 'block';
                 const response = await fetch(`/download?url=${encodeURIComponent(videoUrl.value)}&quality=${encodeURIComponent(qualitySelect.value)}`);
                 if (response.ok) {
+                    const totalSize = response.headers.get('Content-Length');
+                    let downloaded = 0;
+
+                    // Update progress based on the download size
+                    response.body.on('data', (chunk) => {
+                        downloaded += chunk.length;
+                        const percent = (downloaded / totalSize) * 100;
+                        progressBar.style.width = `${percent}%`;
+                    });
+
+                    // Once download is complete, show video in iframe
                     const blob = await response.blob();
                     const url = URL.createObjectURL(blob);
-                    // Trigger the download of the video
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = 'video.mp4'; // Optional: change the filename here if desired
-                    document.body.appendChild(a);
-                    a.click();
-                    a.remove();
+                    videoFrame.src = url;
+                    videoFrame.style.display = 'block';
                 } else {
                     const data = await response.json();
                     errorMessage.textContent = data.error || 'Error during download.';
@@ -106,6 +143,12 @@
                 console.error(error);
             }
         });
+
+        // Function to extract the video ID from the URL
+        function extractVideoID(url) {
+            const match = url.match(/(?:https?:\/\/(?:www\.)?youtube\.com\/(?:[^/]+\/[^\?]+|\S*?[&?]v=|(?:v|e(?:mbed)?)=)([A-Za-z0-9_-]{11}))/);
+            return match ? match[1] : '';
+        }
     </script>
 </body>
 </html>
