@@ -58,7 +58,7 @@ app.post('/get-formats', async (req, res) => {
     }
 });
 
-// Route to handle downloading content with quality selection
+// Route to handle downloading content with quality selection and show progress via SSE
 app.get('/download', async (req, res) => {
     const { url, quality } = req.query;
 
@@ -68,25 +68,39 @@ app.get('/download', async (req, res) => {
 
     const videoPath = path.join(downloadsDir, 'video.mp4'); // Path to save the video file
 
+    // Set headers for SSE
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.flushHeaders();
+
     try {
-        // Download video and audio together with the selected quality
-        await new Promise((resolve, reject) => {
-            const command = `yt-dlp -f ${quality} -o "${videoPath}" ${url}`;
-            exec(command, (err, stdout, stderr) => {
-                if (err) {
-                    reject(`Error during download: ${stderr}`);
-                } else {
-                    resolve(stdout);
-                }
-            });
+        // Use yt-dlp to download and track progress
+        const command = `yt-dlp -f ${quality} -o "${videoPath}" ${url}`;
+
+        const downloadProcess = exec(command);
+
+        downloadProcess.stdout.on('data', (data) => {
+            // Send progress to client
+            res.write(`data: ${data}\n\n`);
         });
 
-        // Check if video was successfully downloaded
-        if (fs.existsSync(videoPath)) {
-            res.download(videoPath); // Send the video file to the client
-        } else {
-            throw new Error('Video download failed');
-        }
+        downloadProcess.stderr.on('data', (data) => {
+            // Send any errors to the client
+            res.write(`data: ${data}\n\n`);
+        });
+
+        downloadProcess.on('close', (code) => {
+            if (code === 0) {
+                res.write(`data: Download complete!\n\n`);
+                res.write(`data: The video is ready for download.\n\n`);
+                res.download(videoPath); // Send the video file to the client
+            } else {
+                res.write(`data: Error: Download failed\n\n`);
+                res.end();
+            }
+        });
+
     } catch (error) {
         console.error('Error:', error);
         res.status(500).json({ error: 'Failed to download video', message: error });
