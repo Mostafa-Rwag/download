@@ -73,102 +73,66 @@
     </div>
 
     <script>
-        const videoUrl = document.getElementById('videoUrl');
-        const qualitySelect = document.getElementById('qualitySelect');
         const downloadButton = document.getElementById('downloadButton');
-        const errorMessage = document.getElementById('errorMessage');
-        const progress = document.getElementById('progress');
+        const qualitySelect = document.getElementById('qualitySelect');
+        const videoUrlInput = document.getElementById('videoUrl');
         const progressBar = document.getElementById('progressBar');
+        const progressContainer = document.getElementById('progress');
+        const errorMessage = document.getElementById('errorMessage');
         const videoFrame = document.getElementById('videoFrame');
 
-        // Fetch available video formats when the URL input changes
-        videoUrl.addEventListener('input', async () => {
-            if (!videoUrl.value) return;
-            try {
-                const response = await fetch('/get-formats', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ url: videoUrl.value })
-                });
-                const data = await response.json();
-                qualitySelect.innerHTML = '<option value="">Select Quality</option>';
-                data.formats.forEach(format => {
-                    const option = document.createElement('option');
-                    option.value = format.code;
-                    option.textContent = format.description;
-                    qualitySelect.appendChild(option);
-                });
-            } catch (error) {
-                console.error('Error fetching formats:', error);
-            }
-        });
+        // Handle form submission
+        downloadButton.onclick = async () => {
+            const url = videoUrlInput.value;
+            const quality = qualitySelect.value;
 
-        // Handle the video download when the user clicks the download button
-        downloadButton.addEventListener('click', async () => {
-            if (!videoUrl.value || !qualitySelect.value) {
-                errorMessage.textContent = 'Please provide a valid URL and select a quality.';
+            if (!url || !quality) {
+                errorMessage.textContent = 'Please provide a URL and select quality';
                 return;
             }
 
-            // Immediately show video in iframe
-            videoFrame.src = `https://www.youtube.com/embed/${extractVideoID(videoUrl.value)}`;
-            videoFrame.style.display = 'block';
+            errorMessage.textContent = ''; // Clear any previous errors
+            progressContainer.style.display = 'block'; // Show progress bar
 
-            // Start video download in the background
             try {
-                progress.style.display = 'block';
-                const response = await fetch(`/download?url=${encodeURIComponent(videoUrl.value)}&quality=${encodeURIComponent(qualitySelect.value)}`);
+                const response = await fetch('/download?url=' + encodeURIComponent(url) + '&quality=' + encodeURIComponent(quality));
                 if (response.ok) {
-                    const totalSize = response.headers.get('Content-Length');
-                    let downloaded = 0;
+                    const downloadUrl = await response.blob();
+                    const downloadUrlObject = URL.createObjectURL(downloadUrl);
+                    videoFrame.src = downloadUrlObject; // Display the video
+                    videoFrame.style.display = 'block'; // Show the iframe
 
-                    // Update progress based on the download size
-                    const reader = response.body.getReader();
-                    const stream = new ReadableStream({
-                        start(controller) {
-                            function push() {
-                                reader.read().then(({ done, value }) => {
-                                    if (done) {
-                                        controller.close();
-                                        return;
-                                    }
-                                    downloaded += value.length;
-                                    const percent = (downloaded / totalSize) * 100;
-                                    progressBar.style.width = `${percent}%`;
-                                    controller.enqueue(value);
-                                    push();
-                                });
-                            }
-                            push();
-                        }
-                    });
-
-                    // Create a blob and create a URL to download
-                    const newResponse = new Response(stream);
-                    const blob = await newResponse.blob();
-                    const url = window.URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = 'video.mp4';
-                    a.click();
-                    window.URL.revokeObjectURL(url);
+                    progressBar.style.width = '100%'; // Fill progress bar
+                    setTimeout(() => progressContainer.style.display = 'none', 2000); // Hide after a short delay
                 } else {
-                    errorMessage.textContent = 'Failed to download video.';
+                    errorMessage.textContent = 'Failed to download the video. Please try again.';
                 }
             } catch (error) {
-                errorMessage.textContent = 'Error during download. Please try again.';
-                console.error('Download error:', error);
-            } finally {
-                progress.style.display = 'none';
+                errorMessage.textContent = 'An error occurred during the download process.';
             }
-        });
+        };
 
-        // Function to extract YouTube video ID from the URL
-        function extractVideoID(url) {
-            const regex = /(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|(?:.*[?&])v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
-            const match = url.match(regex);
-            return match ? match[1] : null;
-        }
+        // Fetch formats for the selected video URL
+        videoUrlInput.oninput = async () => {
+            const url = videoUrlInput.value;
+            if (url) {
+                const response = await fetch('/get-formats', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url })
+                });
+                if (response.ok) {
+                    const data = await response.json();
+                    qualitySelect.innerHTML = '<option value="">Select Quality</option>'; // Clear previous options
+                    data.formats.forEach(format => {
+                        const option = document.createElement('option');
+                        option.value = format.code;
+                        option.textContent = format.description;
+                        qualitySelect.appendChild(option);
+                    });
+                }
+            }
+        };
     </script>
 </body>
 </html>
