@@ -69,11 +69,15 @@ app.get('/download', async (req, res) => {
     }
 
     try {
-        // Download the video and audio directly to the response without storing temporarily
+        // Download the video directly to the response stream
         const command = `yt-dlp -f ${quality} -o - ${url}`;
         const videoStream = exec(command);
 
-        // Pipe the video stream directly to the response
+        // Set the headers for downloading the file
+        res.setHeader('Content-Type', 'video/mp4'); // Set content type for video file
+        res.setHeader('Content-Disposition', 'attachment; filename="video.mp4"'); // Force download with the desired file name
+
+        // Pipe the video stream to the response so it can be downloaded by the user
         videoStream.stdout.pipe(res);
 
         videoStream.on('exit', (code) => {
