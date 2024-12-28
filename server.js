@@ -45,18 +45,7 @@ app.post('/get-formats', async (req, res) => {
                 return { code: parts[0], description: parts.slice(1).join(' ') };
             });
 
-        // Remove duplicate MP4 formats (MP4 and MP4 DASH)
-        const uniqueFormats = [];
-        const seen = new Set();
-
-        formats.forEach(format => {
-            if (!seen.has(format.description)) {
-                seen.add(format.description);
-                uniqueFormats.push(format);
-            }
-        });
-
-        res.status(200).json({ formats: uniqueFormats });
+        res.status(200).json({ formats });
     } catch (error) {
         console.error('Error:', error);
         res.status(500).json({ error: 'Failed to fetch formats', message: error });
@@ -75,7 +64,7 @@ app.get('/download', async (req, res) => {
     const audioPath = path.join(__dirname, 'downloads', 'audio.mp3');
 
     try {
-        // Download video-only or audio if necessary
+        // Download video and audio simultaneously (if possible)
         await new Promise((resolve, reject) => {
             const command = `yt-dlp -f ${quality} -o "${videoPath}" ${url}`;
             exec(command, (err, stdout, stderr) => {
@@ -87,7 +76,7 @@ app.get('/download', async (req, res) => {
             });
         });
 
-        // Check if video has audio; if not, download the best audio format
+        // If the video doesn't have audio, download it separately
         const hasAudio = quality.includes('+');
         if (!hasAudio) {
             await new Promise((resolve, reject) => {
@@ -118,7 +107,6 @@ app.get('/download', async (req, res) => {
             fs.renameSync(mergedPath, videoPath);
         }
 
-        // Send the video as a response
         res.download(videoPath);
     } catch (error) {
         console.error('Error:', error);
