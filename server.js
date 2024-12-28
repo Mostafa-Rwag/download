@@ -66,58 +66,27 @@ app.get('/download', async (req, res) => {
         return res.status(400).json({ error: 'URL and quality are required' });
     }
 
-    const videoPath = path.join(downloadsDir, 'video.mp4');
-    const audioPath = path.join(downloadsDir, 'audio.mp3');
+    const videoPath = path.join(downloadsDir, 'video.mp4'); // Path to save the video file
 
     try {
-        // Download video-only or audio if necessary
+        // Download video and audio together with the selected quality
         await new Promise((resolve, reject) => {
-            const command = `yt-dlp -f bestvideo+bestaudio -o "${videoPath}" ${url}`;
+            const command = `yt-dlp -f ${quality} -o "${videoPath}" ${url}`;
             exec(command, (err, stdout, stderr) => {
                 if (err) {
-                    reject(`Error during video download: ${stderr}`);
+                    reject(`Error during download: ${stderr}`);
                 } else {
                     resolve(stdout);
                 }
             });
         });
 
-        // Check if video has audio; if not, download the best audio format
-        const hasAudio = quality.includes('+');
-        if (!hasAudio) {
-            await new Promise((resolve, reject) => {
-                const command = `yt-dlp -f bestaudio -o "${audioPath}" ${url}`;
-                exec(command, (err, stdout, stderr) => {
-                    if (err) {
-                        reject(`Error during audio download: ${stderr}`);
-                    } else {
-                        resolve(stdout);
-                    }
-                });
-            });
-
-            // Check if files exist before merging
-            if (fs.existsSync(videoPath) && fs.existsSync(audioPath)) {
-                const mergedPath = path.join(downloadsDir, 'merged_video.mp4');
-                await new Promise((resolve, reject) => {
-                    const command = `ffmpeg -i "${videoPath}" -i "${audioPath}" -c:v copy -c:a aac "${mergedPath}" -y`;
-                    exec(command, (err, stdout, stderr) => {
-                        if (err) {
-                            reject(`Error during merging: ${stderr}`);
-                        } else {
-                            resolve(stdout);
-                        }
-                    });
-                });
-
-                fs.unlinkSync(videoPath);
-                fs.renameSync(mergedPath, videoPath);
-            } else {
-                throw new Error('Video or audio file not found');
-            }
+        // Check if video was successfully downloaded
+        if (fs.existsSync(videoPath)) {
+            res.download(videoPath); // Send the video file to the client
+        } else {
+            throw new Error('Video download failed');
         }
-
-        res.download(videoPath);
     } catch (error) {
         console.error('Error:', error);
         res.status(500).json({ error: 'Failed to download video', message: error });
