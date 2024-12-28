@@ -56,9 +56,45 @@
             border: none;
             margin-top: 20px;
         }
+        
         #qualitySelect {
-            font-size: 14px;
-        }
+    font-size: 16px;
+    padding: 12px;
+    border-radius: 8px;
+    border: 1px solid #ccc;
+    width: 100%;
+    background-color: #fff;
+    color: #333;
+    appearance: none; /* Remove default dropdown style */
+    -webkit-appearance: none; /* Remove default dropdown style in Safari */
+    -moz-appearance: none; /* Remove default dropdown style in Firefox */
+    background-image: url('https://img.icons8.com/ios/452/downward-arrow.png'); /* Custom arrow */
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    background-size: 20px;
+}
+
+#qualitySelect:focus {
+    border-color: #007bff;
+    outline: none;
+}
+
+#qualitySelect option {
+    font-size: 14px;
+    padding: 10px;
+}
+
+#qualitySelect option:hover {
+    background-color: #f2f2f2;
+}
+
+#qualitySelect option:active {
+    background-color: #007bff;
+    color: white;
+}
+
+
+
     </style>
 </head>
 <body>
