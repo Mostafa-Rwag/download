@@ -53,7 +53,7 @@
             max-width: 600px;
             border-radius: 10px;
             margin-top: 20px;
-            display: none; /* Start hidden */
+            display: none; /* Hide initially */
         }
     </style>
 </head>
@@ -85,11 +85,7 @@
         videoUrl.addEventListener('input', async () => {
             if (!videoUrl.value) return;
             try {
-                const response = await fetch('/get-formats', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ url: videoUrl.value })
-                });
+                const response = await fetch(`/get-formats?url=${encodeURIComponent(videoUrl.value)}`);
                 const data = await response.json();
                 qualitySelect.innerHTML = '<option value="">Select Quality</option>';
                 data.formats.forEach(format => {
