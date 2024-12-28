@@ -164,22 +164,35 @@ downloadButton.addEventListener('click', async () => {
 
     try {
         const response = await fetch(`/download?url=${encodeURIComponent(videoUrl.value)}&quality=${encodeURIComponent(qualitySelect.value)}`);
+        
+        // Handle the streaming response
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let done = false;
+        let progress = 0;
 
-        if (response.ok) {
-            // Direct download link
-            const downloadUrl = URL.createObjectURL(await response.blob());
-            const a = document.createElement('a');
-            a.href = downloadUrl;
-            a.download = 'video.mp4'; // You can dynamically change the name based on video info
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            statusMessage.textContent = 'Download started!';
-        } else {
-            const data = await response.json();
-            statusMessage.classList.add('error');
-            statusMessage.textContent = data.error || 'Error during download.';
+        while (!done) {
+            const { value, done: readerDone } = await reader.read();
+            done = readerDone;
+            const str = decoder.decode(value, { stream: true });
+            const data = JSON.parse(str);
+
+            if (data.progress) {
+                progress = data.progress;
+                progressBar.style.width = `${progress}%`;
+            }
         }
+
+        // Once the download completes, trigger the actual download
+        const downloadUrl = URL.createObjectURL(await response.blob());
+        const a = document.createElement('a');
+        a.href = downloadUrl;
+        a.download = 'video.mp4'; // You can dynamically change the name based on video info
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        
+        statusMessage.textContent = 'Download started!';
     } catch (error) {
         statusMessage.classList.add('error');
         statusMessage.textContent = 'Error during download.';
@@ -188,6 +201,7 @@ downloadButton.addEventListener('click', async () => {
         spinner.style.display = 'none';
     }
 });
+
 
 
 
