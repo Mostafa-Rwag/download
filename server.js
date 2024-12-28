@@ -69,13 +69,13 @@ app.get('/download', async (req, res) => {
     }
 
     try {
+        // Set headers before sending any content
+        res.setHeader('Content-Type', 'video/mp4'); // Set content type for video file
+        res.setHeader('Content-Disposition', 'attachment; filename="video.mp4"'); // Force download with the desired file name
+
         // Start the download process and make sure we set headers before sending the video.
         const command = `yt-dlp -f ${quality} -o - ${url}`;
         const videoStream = exec(command);
-
-        // Set headers before sending data
-        res.setHeader('Content-Type', 'video/mp4'); // Set content type for video file
-        res.setHeader('Content-Disposition', 'attachment; filename="video.mp4"'); // Force download with the desired file name
 
         // Pipe the video stream to the response so it can be downloaded by the user
         videoStream.stdout.pipe(res);
