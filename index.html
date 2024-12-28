@@ -10,6 +10,7 @@
             padding: 0;
             box-sizing: border-box;
         }
+
         body {
             font-family: 'Arial', sans-serif;
             background-color: #f4f4f9;
@@ -28,6 +29,11 @@
             width: 100%;
             max-width: 500px;
             text-align: center;
+            transition: transform 0.3s ease-in-out;
+        }
+
+        .container:hover {
+            transform: scale(1.05);
         }
 
         h1 {
@@ -37,16 +43,18 @@
         }
 
         input, select, button {
-            padding: 10px;
+            padding: 12px;
             width: 100%;
             margin-bottom: 20px;
             border-radius: 5px;
             border: 1px solid #ccc;
             font-size: 1rem;
+            transition: border-color 0.3s ease;
         }
 
-        select {
-            font-size: 1rem;
+        input:focus, select:focus, button:focus {
+            border-color: #007bff;
+            outline: none;
         }
 
         button {
@@ -54,6 +62,7 @@
             color: white;
             cursor: pointer;
             font-weight: bold;
+            transition: background-color 0.3s ease;
         }
 
         button:hover {
@@ -82,6 +91,17 @@
             border: none;
         }
 
+        .statusMessage {
+            margin-top: 20px;
+            font-size: 1.2rem;
+            color: #007bff;
+            display: none;
+        }
+
+        .statusMessage.error {
+            color: #e74c3c;
+        }
+
         /* Responsive design */
         @media screen and (max-width: 600px) {
             h1 {
@@ -97,6 +117,22 @@
                 padding: 20px;
             }
         }
+
+        /* Spinner animation */
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 2s linear infinite;
+            margin: 0 auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
     </style>
 </head>
 <body>
@@ -107,13 +143,18 @@
             <option value="">Select Quality</option>
         </select>
         <button id="downloadButton">Download Video</button>
+
         <div id="errorMessage" style="color: red;"></div>
-
-        <iframe id="videoFrame" style="display: none;"></iframe>
-
+        
         <div id="progressBar">
             <div id="progress"></div>
         </div>
+
+        <div id="spinner" class="spinner" style="display: none;"></div>
+
+        <div id="statusMessage" class="statusMessage"></div>
+
+        <iframe id="videoFrame" style="display: none;"></iframe>
     </div>
 
     <script>
@@ -123,6 +164,8 @@
         const errorMessage = document.getElementById('errorMessage');
         const progressBar = document.getElementById('progressBar');
         const progress = document.getElementById('progress');
+        const spinner = document.getElementById('spinner');
+        const statusMessage = document.getElementById('statusMessage');
         const videoFrame = document.getElementById('videoFrame');
 
         // Fetch available video formats when the URL input changes
@@ -168,6 +211,10 @@
                 return;
             }
 
+            // Show spinner and status message
+            spinner.style.display = 'block';
+            statusMessage.style.display = 'block';
+            statusMessage.textContent = 'Downloading... Please wait.';
             progressBar.style.display = 'block';
             progress.style.width = '0%';
 
@@ -183,13 +230,19 @@
                     document.body.appendChild(a);
                     a.click();
                     a.remove();
+
+                    statusMessage.textContent = 'Download started!';
                 } else {
                     const data = await response.json();
-                    errorMessage.textContent = data.error || 'Error during download.';
+                    statusMessage.classList.add('error');
+                    statusMessage.textContent = data.error || 'Error during download.';
                 }
             } catch (error) {
-                errorMessage.textContent = 'Error during download.';
+                statusMessage.classList.add('error');
+                statusMessage.textContent = 'Error during download.';
                 console.error(error);
+            } finally {
+                spinner.style.display = 'none';
             }
         });
     </script>
