@@ -121,18 +121,29 @@ app.get('/download', async (req, res) => {
             fs.renameSync(mergedPath, videoPath);
         }
 
-        // Send video file for download
-        res.download(videoPath, 'video.mp4', (err) => {
-            if (err) {
-                console.error('Error during file download:', err);
-                res.status(500).send('Error during download');
-            }
+        // Use a stream to send the video to the client
+        const videoStream = fs.createReadStream(videoPath);
+        res.setHeader('Content-Type', 'video/mp4');
+        res.setHeader('Content-Disposition', 'attachment; filename=video.mp4');
+        
+        // Pipe the video stream to the response
+        videoStream.pipe(res);
+
+        videoStream.on('end', () => {
+            console.log('File sent successfully');
         });
+
+        videoStream.on('error', (err) => {
+            console.error('Error during file streaming:', err);
+            res.status(500).send('Error during file download');
+        });
+
     } catch (error) {
         console.error('Error:', error);
         res.status(500).json({ error: 'Failed to download video', message: error });
     }
 });
+
 
 
 // Start the server
