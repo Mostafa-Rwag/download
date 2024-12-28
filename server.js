@@ -144,6 +144,10 @@ app.get('/download', async (req, res) => {
     }
 });
 
+app.use(function(req, res, next) {
+    res.setTimeout(0); // لا تضبط وقت المهلة
+    next();
+});
 
 
 // Start the server
