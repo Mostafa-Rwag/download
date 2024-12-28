@@ -115,8 +115,18 @@ app.get('/download', async (req, res) => {
             fs.renameSync(mergedPath, videoPath);
         }
 
-        // Send the video as a response
-        res.download(videoPath);
+        // Send the video as a response after download completion
+        res.download(videoPath, 'video.mp4', (err) => {
+            if (err) {
+                console.error('Download error:', err);
+                res.status(500).send('Failed to send the video for download');
+            } else {
+                console.log('Download complete');
+                // Optionally, clean up the downloaded files after sending
+                fs.unlinkSync(videoPath);
+                fs.unlinkSync(audioPath);
+            }
+        });
     } catch (error) {
         console.error('Error:', error);
         res.status(500).json({ error: 'Failed to download video', message: error });
