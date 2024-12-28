@@ -37,23 +37,17 @@
         button:hover {
             background-color: #0056b3;
         }
-        .progress-bar {
+        #progressBar {
             width: 100%;
-            height: 5px;
-            background-color: #ccc;
+            background-color: #f3f3f3;
+            border-radius: 5px;
             margin-top: 20px;
         }
-        .progress-bar div {
-            height: 100%;
+        #progress {
+            height: 20px;
             width: 0;
-            background-color: #007bff;
-        }
-        iframe {
-            width: 100%;
-            max-width: 600px;
-            border-radius: 10px;
-            margin-top: 20px;
-            display: none; /* Start hidden */
+            background-color: #4caf50;
+            border-radius: 5px;
         }
     </style>
 </head>
@@ -66,73 +60,83 @@
         </select>
         <button id="downloadButton">Download Video</button>
         <div id="errorMessage" style="color: red;"></div>
-        <div id="progress" class="progress-bar" style="display: none;">
-            <div id="progressBar" style="width: 0;"></div>
+
+        <!-- Iframe for displaying the video -->
+        <iframe id="videoFrame" width="100%" height="315" style="display: none;"></iframe>
+
+        <!-- Progress bar for download -->
+        <div id="progressBar" style="display: none;">
+            <div id="progress"></div>
         </div>
-        <iframe id="videoFrame" src="" frameborder="0"></iframe>
     </div>
 
     <script>
-        const downloadButton = document.getElementById('downloadButton');
+        const videoUrl = document.getElementById('videoUrl');
         const qualitySelect = document.getElementById('qualitySelect');
-        const videoUrlInput = document.getElementById('videoUrl');
-        const progressBar = document.getElementById('progressBar');
-        const progressContainer = document.getElementById('progress');
+        const downloadButton = document.getElementById('downloadButton');
         const errorMessage = document.getElementById('errorMessage');
+        const progressBar = document.getElementById('progressBar');
+        const progress = document.getElementById('progress');
         const videoFrame = document.getElementById('videoFrame');
 
-        // Handle form submission
-        downloadButton.onclick = async () => {
-            const url = videoUrlInput.value;
-            const quality = qualitySelect.value;
-
-            if (!url || !quality) {
-                errorMessage.textContent = 'Please provide a URL and select quality';
-                return;
-            }
-
-            errorMessage.textContent = ''; // Clear any previous errors
-            progressContainer.style.display = 'block'; // Show progress bar
-
+        // Fetch available video formats when the URL input changes
+        videoUrl.addEventListener('input', async () => {
+            if (!videoUrl.value) return;
             try {
-                const response = await fetch('/download?url=' + encodeURIComponent(url) + '&quality=' + encodeURIComponent(quality));
-                if (response.ok) {
-                    const downloadUrl = await response.blob();
-                    const downloadUrlObject = URL.createObjectURL(downloadUrl);
-                    videoFrame.src = downloadUrlObject; // Display the video
-                    videoFrame.style.display = 'block'; // Show the iframe
-
-                    progressBar.style.width = '100%'; // Fill progress bar
-                    setTimeout(() => progressContainer.style.display = 'none', 2000); // Hide after a short delay
-                } else {
-                    errorMessage.textContent = 'Failed to download the video. Please try again.';
-                }
-            } catch (error) {
-                errorMessage.textContent = 'An error occurred during the download process.';
-            }
-        };
-
-        // Fetch formats for the selected video URL
-        videoUrlInput.oninput = async () => {
-            const url = videoUrlInput.value;
-            if (url) {
                 const response = await fetch('/get-formats', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ url })
+                    body: JSON.stringify({ url: videoUrl.value })
                 });
-                if (response.ok) {
-                    const data = await response.json();
-                    qualitySelect.innerHTML = '<option value="">Select Quality</option>'; // Clear previous options
-                    data.formats.forEach(format => {
-                        const option = document.createElement('option');
-                        option.value = format.code;
-                        option.textContent = format.description;
-                        qualitySelect.appendChild(option);
-                    });
-                }
+                const data = await response.json();
+                qualitySelect.innerHTML = '<option value="">Select Quality</option>';
+                data.formats.forEach(format => {
+                    const option = document.createElement('option');
+                    option.value = format.code;
+                    option.textContent = format.description;
+                    qualitySelect.appendChild(option);
+                });
+
+                // Display video in iframe
+                videoFrame.src = `https://www.youtube.com/embed/${videoUrl.value.split('v=')[1]}`;
+                videoFrame.style.display = 'block';
+            } catch (error) {
+                console.error('Error fetching formats:', error);
             }
-        };
+        });
+
+        // Handle the video download when the user clicks the download button
+        downloadButton.addEventListener('click', async () => {
+            if (!videoUrl.value || !qualitySelect.value) {
+                errorMessage.textContent = 'Please provide a valid URL and select a quality.';
+                return;
+            }
+
+            progressBar.style.display = 'block';
+            progress.style.width = '0%';
+
+            try {
+                const response = await fetch(`/download?url=${encodeURIComponent(videoUrl.value)}&quality=${encodeURIComponent(qualitySelect.value)}`);
+                if (response.ok) {
+                    const blob = await response.blob();
+                    const url = URL.createObjectURL(blob);
+
+                    // Trigger the download of the video
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'video.mp4';
+                    document.body.appendChild(a);
+                    a.click();
+                    a.remove();
+                } else {
+                    const data = await response.json();
+                    errorMessage.textContent = data.error || 'Error during download.';
+                }
+            } catch (error) {
+                errorMessage.textContent = 'Error during download.';
+                console.error(error);
+            }
+        });
     </script>
 </body>
 </html>
