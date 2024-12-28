@@ -66,6 +66,7 @@ app.post('/get-formats', async (req, res) => {
 });
 
 // Route to handle downloading content with quality selection
+// Route to handle downloading content with quality selection
 app.get('/download', async (req, res) => {
     const { url, quality } = req.query;
 
@@ -128,12 +129,21 @@ app.get('/download', async (req, res) => {
         });
 
         const readStream = fs.createReadStream(videoPath);
+        let loaded = 0;
+
+        readStream.on('data', chunk => {
+            loaded += chunk.length;
+            const progress = (loaded / stat.size) * 100;
+            res.write(JSON.stringify({ progress }));
+        });
+
         readStream.pipe(res);
     } catch (error) {
         console.error('Error:', error);
         res.status(500).json({ error: 'Failed to download video', message: error });
     }
 });
+
 
 // Start the server
 app.listen(port, () => {
