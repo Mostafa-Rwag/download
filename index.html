@@ -37,17 +37,12 @@
         button:hover {
             background-color: #0056b3;
         }
-        #progressBar {
-            width: 100%;
-            background-color: #f3f3f3;
-            border-radius: 5px;
+        iframe {
             margin-top: 20px;
-        }
-        #progress {
-            height: 20px;
-            width: 0;
-            background-color: #4caf50;
-            border-radius: 5px;
+            width: 100%;
+            max-width: 600px;
+            border-radius: 10px;
+            display: none; /* Hide the iframe until the download is complete */
         }
     </style>
 </head>
@@ -60,14 +55,7 @@
         </select>
         <button id="downloadButton">Download Video</button>
         <div id="errorMessage" style="color: red;"></div>
-
-        <!-- Iframe for displaying the video -->
-        <iframe id="videoFrame" width="100%" height="315" style="display: none;"></iframe>
-
-        <!-- Progress bar for download -->
-        <div id="progressBar" style="display: none;">
-            <div id="progress"></div>
-        </div>
+        <iframe id="videoIframe" width="600" height="400" allowfullscreen></iframe>
     </div>
 
     <script>
@@ -75,9 +63,7 @@
         const qualitySelect = document.getElementById('qualitySelect');
         const downloadButton = document.getElementById('downloadButton');
         const errorMessage = document.getElementById('errorMessage');
-        const progressBar = document.getElementById('progressBar');
-        const progress = document.getElementById('progress');
-        const videoFrame = document.getElementById('videoFrame');
+        const videoIframe = document.getElementById('videoIframe');
 
         // Fetch available video formats when the URL input changes
         videoUrl.addEventListener('input', async () => {
@@ -96,10 +82,6 @@
                     option.textContent = format.description;
                     qualitySelect.appendChild(option);
                 });
-
-                // Display video in iframe
-                videoFrame.src = `https://www.youtube.com/embed/${videoUrl.value.split('v=')[1]}`;
-                videoFrame.style.display = 'block';
             } catch (error) {
                 console.error('Error fetching formats:', error);
             }
@@ -111,9 +93,6 @@
                 errorMessage.textContent = 'Please provide a valid URL and select a quality.';
                 return;
             }
-
-            progressBar.style.display = 'block';
-            progress.style.width = '0%';
 
             try {
                 const response = await fetch(`/download?url=${encodeURIComponent(videoUrl.value)}&quality=${encodeURIComponent(qualitySelect.value)}`);
@@ -128,6 +107,10 @@
                     document.body.appendChild(a);
                     a.click();
                     a.remove();
+
+                    // Display the video in iframe
+                    videoIframe.src = url;
+                    videoIframe.style.display = 'block';
                 } else {
                     const data = await response.json();
                     errorMessage.textContent = data.error || 'Error during download.';
