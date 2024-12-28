@@ -84,6 +84,11 @@
         // Fetch available video formats when the URL input changes
         videoUrl.addEventListener('input', async () => {
             if (!videoUrl.value) return;
+
+            // Show the iframe immediately when the URL is entered
+            videoFrame.style.display = 'block';
+            videoFrame.src = `https://www.youtube.com/embed/${extractVideoID(videoUrl.value)}`;
+
             try {
                 const response = await fetch('/get-formats', {
                     method: 'POST',
@@ -109,10 +114,6 @@
                 errorMessage.textContent = 'Please provide a valid URL and select a quality.';
                 return;
             }
-
-            // Immediately show video in iframe
-            videoFrame.src = `https://www.youtube.com/embed/${extractVideoID(videoUrl.value)}`;
-            videoFrame.style.display = 'block';
 
             // Start video download in the background
             try {
