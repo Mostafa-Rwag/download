@@ -134,7 +134,13 @@ app.get('/download', async (req, res) => {
         res.setHeader('Content-Type', 'video/mp4');
         res.setHeader('Content-Disposition', 'attachment; filename=video.mp4');
         
-        // Pipe the video stream to the response
+        // Send the video with streaming
+        videoStream.on('data', chunk => {
+            // Update the progress on each chunk of data sent to the client
+            const progressPercentage = Math.round((videoStream.bytesRead / fs.statSync(videoPath).size) * 100);
+            res.write(`data: ${progressPercentage}%\n\n`);
+        });
+
         videoStream.pipe(res);
 
         videoStream.on('end', () => {
@@ -150,7 +156,6 @@ app.get('/download', async (req, res) => {
         console.error('Error:', error);
         res.status(500).json({ error: 'Failed to download video', message: error });
     }
-
 });
 
 // Start the server
