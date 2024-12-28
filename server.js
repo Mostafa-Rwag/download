@@ -68,65 +68,28 @@ app.get('/download', async (req, res) => {
         return res.status(400).json({ error: 'URL and quality are required' });
     }
 
-    const videoPath = path.join(__dirname, 'downloads', 'video.mp4');
-    const audioPath = path.join(__dirname, 'downloads', 'audio.mp3');
-
     try {
-        // Download video-only or audio if necessary
-        await new Promise((resolve, reject) => {
-            const command = `yt-dlp -f ${quality} -o "${videoPath}" ${url}`;
-            exec(command, (err, stdout, stderr) => {
-                if (err) {
-                    reject(`Error during video download: ${stderr}`);
-                } else {
-                    resolve(stdout);
-                }
-            });
-        });
+        // Download the video and audio directly to the response without storing temporarily
+        const command = `yt-dlp -f ${quality} -o - ${url}`;
+        const videoStream = exec(command);
 
-        // Check if video has audio; if not, download the best audio format
-        const hasAudio = quality.includes('+');
-        if (!hasAudio) {
-            await new Promise((resolve, reject) => {
-                const command = `yt-dlp -f bestaudio -o "${audioPath}" ${url}`;
-                exec(command, (err, stdout, stderr) => {
-                    if (err) {
-                        reject(`Error during audio download: ${stderr}`);
-                    } else {
-                        resolve(stdout);
-                    }
-                });
-            });
+        // Pipe the video stream directly to the response
+        videoStream.stdout.pipe(res);
 
-            // Merge video and audio
-            const mergedPath = path.join(__dirname, 'downloads', 'merged_video.mp4');
-            await new Promise((resolve, reject) => {
-                const command = `ffmpeg -i "${videoPath}" -i "${audioPath}" -c:v copy -c:a aac "${mergedPath}" -y`;
-                exec(command, (err, stdout, stderr) => {
-                    if (err) {
-                        reject(`Error during merging: ${stderr}`);
-                    } else {
-                        resolve(stdout);
-                    }
-                });
-            });
-
-            fs.unlinkSync(videoPath);
-            fs.renameSync(mergedPath, videoPath);
-        }
-
-        // Send the video as a response after download completion
-        res.download(videoPath, 'video.mp4', (err) => {
-            if (err) {
-                console.error('Download error:', err);
-                res.status(500).send('Failed to send the video for download');
+        videoStream.on('exit', (code) => {
+            if (code !== 0) {
+                console.error(`Download failed with code ${code}`);
+                res.status(500).send('Failed to download the video.');
             } else {
-                console.log('Download complete');
-                // Optionally, clean up the downloaded files after sending
-                fs.unlinkSync(videoPath);
-                fs.unlinkSync(audioPath);
+                console.log('Download complete.');
             }
         });
+
+        videoStream.on('error', (error) => {
+            console.error('Error:', error);
+            res.status(500).send('Failed to download the video.');
+        });
+
     } catch (error) {
         console.error('Error:', error);
         res.status(500).json({ error: 'Failed to download video', message: error });
