@@ -78,50 +78,20 @@ app.get('/download', async (req, res) => {
     const audioPath = path.join(__dirname, 'downloads', 'audio.mp3');
 
     try {
-        // Download video-only or audio if necessary
+        console.log('Starting download for URL:', url);
         await new Promise((resolve, reject) => {
             const command = `yt-dlp -f ${quality} -o "${videoPath}" ${url}`;
             exec(command, (err, stdout, stderr) => {
                 if (err) {
+                    console.log('Error during video download:', stderr);
                     reject(`Error during video download: ${stderr}`);
                 } else {
+                    console.log('Video download completed');
                     resolve(stdout);
                 }
             });
         });
 
-        // Check if video has audio; if not, download the best audio format
-        const hasAudio = quality.includes('+');
-        if (!hasAudio) {
-            await new Promise((resolve, reject) => {
-                const command = `yt-dlp -f bestaudio -o "${audioPath}" ${url}`;
-                exec(command, (err, stdout, stderr) => {
-                    if (err) {
-                        reject(`Error during audio download: ${stderr}`);
-                    } else {
-                        resolve(stdout);
-                    }
-                });
-            });
-
-            // Merge video and audio
-            const mergedPath = path.join(__dirname, 'downloads', 'merged_video.mp4');
-            await new Promise((resolve, reject) => {
-                const command = `ffmpeg -i "${videoPath}" -i "${audioPath}" -c:v copy -c:a aac "${mergedPath}" -y`;
-                exec(command, (err, stdout, stderr) => {
-                    if (err) {
-                        reject(`Error during merging: ${stderr}`);
-                    } else {
-                        resolve(stdout);
-                    }
-                });
-            });
-
-            fs.unlinkSync(videoPath);
-            fs.renameSync(mergedPath, videoPath);
-        }
-
-        // **Stream the video file directly to the client**
         const stat = fs.statSync(videoPath);
         res.writeHead(200, {
             'Content-Type': 'video/mp4',
@@ -134,7 +104,13 @@ app.get('/download', async (req, res) => {
         readStream.on('data', chunk => {
             loaded += chunk.length;
             const progress = (loaded / stat.size) * 100;
+            console.log(`Progress: ${progress}%`);
             res.write(JSON.stringify({ progress }));
+        });
+
+        readStream.on('end', () => {
+            console.log('Video streaming completed');
+            res.end();
         });
 
         readStream.pipe(res);
@@ -143,7 +119,6 @@ app.get('/download', async (req, res) => {
         res.status(500).json({ error: 'Failed to download video', message: error });
     }
 });
-
 
 // Start the server
 app.listen(port, () => {
