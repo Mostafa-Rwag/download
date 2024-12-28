@@ -149,64 +149,47 @@
             }
         });
 
-
-downloadButton.addEventListener('click', async () => {
-    if (!videoUrl.value || !qualitySelect.value) {
-        errorMessage.textContent = 'Please provide a valid URL and select a quality.';
-        return;
-    }
-
-    // Start showing the spinner, progress bar, and status message before making the request
-    spinner.style.display = 'block';
-    statusMessage.style.display = 'block';
-    statusMessage.textContent = 'Preparing download...';
-    progressContainer.style.display = 'block'; // Show progress bar
-
-    try {
-        const response = await fetch(`/download?url=${encodeURIComponent(videoUrl.value)}&quality=${encodeURIComponent(qualitySelect.value)}`);
-        
-        // Handle the streaming response
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        let done = false;
-        let progress = 0;
-
-        while (!done) {
-            const { value, done: readerDone } = await reader.read();
-            done = readerDone;
-            const str = decoder.decode(value, { stream: true });
-            const data = JSON.parse(str);
-
-            if (data.progress) {
-                progress = data.progress;
-                progressBar.style.width = `${progress}%`;
+        downloadButton.addEventListener('click', async () => {
+            if (!videoUrl.value || !qualitySelect.value) {
+                errorMessage.textContent = 'Please provide a valid URL and select a quality.';
+                return;
             }
-        }
 
-        // Once the download completes, trigger the actual download
-        const downloadUrl = URL.createObjectURL(await response.blob());
-        const a = document.createElement('a');
-        a.href = downloadUrl;
-        a.download = 'video.mp4'; // You can dynamically change the name based on video info
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        
-        statusMessage.textContent = 'Download started!';
-    } catch (error) {
-        statusMessage.classList.add('error');
-        statusMessage.textContent = 'Error during download.';
-        console.error(error);
-    } finally {
-        spinner.style.display = 'none';
-    }
-});
+            spinner.style.display = 'block';
+            statusMessage.style.display = 'block';
+            statusMessage.textContent = 'Preparing download...';
+            progressContainer.style.display = 'block';
 
+            try {
+                const response = await fetch(`/download?url=${encodeURIComponent(videoUrl.value)}&quality=${encodeURIComponent(qualitySelect.value)}`);
 
+                if (response.ok) {
+                    const reader = response.body.getReader();
+                    const total = parseInt(response.headers.get('Content-Length'), 10);
+                    let loaded = 0;
 
+                    const pump = () => reader.read().then(({ done, value }) => {
+                        if (done) {
+                            spinner.style.display = 'none';
+                            statusMessage.textContent = 'Download complete';
+                            return;
+                        }
 
+                        loaded += value.length;
+                        progressBar.style.width = `${(loaded / total) * 100}%`;
 
-        
+                        pump();
+                    });
+
+                    pump();
+                } else {
+                    errorMessage.textContent = 'Error downloading video.';
+                }
+            } catch (error) {
+                console.error('Download error:', error);
+                errorMessage.textContent = 'Error occurred during download.';
+            }
+        });
     </script>
 </body>
 </html>
