@@ -58,8 +58,8 @@ app.post('/get-formats', async (req, res) => {
     }
 });
 
-// Route to handle downloading content with quality selection and show progress via SSE
-app.get('/download', async (req, res) => {
+// Route to handle downloading content and show progress via SSE
+app.get('/download', (req, res) => {
     const { url, quality } = req.query;
 
     if (!url || !quality) {
@@ -75,26 +75,31 @@ app.get('/download', async (req, res) => {
     res.flushHeaders();
 
     try {
-        // Use yt-dlp to download and track progress
-        const command = `yt-dlp -f ${quality} -o "${videoPath}" ${url}`;
+        // Use yt-dlp with the progress option to download and track progress
+        const command = `yt-dlp -f ${quality} -o "${videoPath}" --progress ${url}`;
 
         const downloadProcess = exec(command);
 
+        // Capture output data and send progress to client
         downloadProcess.stdout.on('data', (data) => {
-            // Send progress to client
-            res.write(`data: ${data}\n\n`);
+            // Parse the progress percentage from yt-dlp output
+            const match = data.match(/(?<=\().*?(\d+)%/);
+            if (match) {
+                const progress = match[1]; // Extract the percentage
+                res.write(`data: ${progress}%\n\n`); // Send the progress to the client
+            }
         });
 
         downloadProcess.stderr.on('data', (data) => {
             // Send any errors to the client
-            res.write(`data: ${data}\n\n`);
+            res.write(`data: Error: ${data}\n\n`);
         });
 
         downloadProcess.on('close', (code) => {
             if (code === 0) {
                 res.write(`data: Download complete!\n\n`);
                 res.write(`data: The video is ready for download.\n\n`);
-                res.download(videoPath); // Send the video file to the client
+                res.end();
             } else {
                 res.write(`data: Error: Download failed\n\n`);
                 res.end();
