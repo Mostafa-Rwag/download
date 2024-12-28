@@ -24,7 +24,18 @@ app.post('/get-formats', async (req, res) => {
         return res.status(400).json({ error: 'URL is required' });
     }
 
-    const command = `yt-dlp -F ${url}`;
+    const cookies = process.env.YTDLP_COOKIES;  // جلب الكوكيز من البيئة
+
+    // تأكد من أن الكوكيز موجودة
+    if (!cookies) {
+        return res.status(400).json({ error: 'Cookies are required' });
+    }
+
+    // حفظ الكوكيز في ملف مؤقت
+    const tempCookiePath = path.join(__dirname, 'cookies.json');
+    fs.writeFileSync(tempCookiePath, cookies);
+
+    const command = `yt-dlp --cookies ${tempCookiePath} -F ${url}`;
 
     try {
         const result = await new Promise((resolve, reject) => {
@@ -61,9 +72,12 @@ app.post('/get-formats', async (req, res) => {
         // دمج الجودات المحددة والجودات الأعلى
         const finalFormats = [...selectedFormats, ...higherFormats];
 
+        fs.unlinkSync(tempCookiePath); // حذف الكوكيز بعد الاستخدام
+
         res.status(200).json({ formats: finalFormats });
     } catch (error) {
         console.error('Error:', error);
+        fs.unlinkSync(tempCookiePath); // حذف الكوكيز في حالة حدوث خطأ
         res.status(500).json({ error: 'Failed to fetch formats', message: error });
     }
 });
@@ -75,6 +89,16 @@ app.get('/download', async (req, res) => {
     if (!url || !quality) {
         return res.status(400).json({ error: 'URL and quality are required' });
     }
+
+    const cookies = process.env.YTDLP_COOKIES;  // جلب الكوكيز من البيئة
+
+    // تأكد من أن الكوكيز موجودة
+    if (!cookies) {
+        return res.status(400).json({ error: 'Cookies are required' });
+    }
+
+    const tempCookiePath = path.join(__dirname, 'cookies.json');
+    fs.writeFileSync(tempCookiePath, cookies);
 
     const videoPath = path.join(__dirname, 'downloads', 'video.mp4');
     const audioPath = path.join(__dirname, 'downloads', 'audio.mp3');
@@ -88,7 +112,7 @@ app.get('/download', async (req, res) => {
 
         // Download video-only or audio if necessary
         await new Promise((resolve, reject) => {
-            const command = `yt-dlp -f ${quality} -o "${videoPath}" ${url}`;
+            const command = `yt-dlp --cookies ${tempCookiePath} -f ${quality} -o "${videoPath}" ${url}`;
             exec(command, (err, stdout, stderr) => {
                 if (err) {
                     reject(`Error during video download: ${stderr}`);
@@ -102,7 +126,7 @@ app.get('/download', async (req, res) => {
         const hasAudio = quality.includes('+');
         if (!hasAudio) {
             await new Promise((resolve, reject) => {
-                const command = `yt-dlp -f bestaudio -o "${audioPath}" ${url}`;
+                const command = `yt-dlp --cookies ${tempCookiePath} -f bestaudio -o "${audioPath}" ${url}`;
                 exec(command, (err, stdout, stderr) => {
                     if (err) {
                         reject(`Error during audio download: ${stderr}`);
@@ -129,18 +153,14 @@ app.get('/download', async (req, res) => {
             fs.renameSync(mergedPath, videoPath);
         }
 
+        fs.unlinkSync(tempCookiePath); // حذف الكوكيز بعد الاستخدام
+
         // Use a stream to send the video to the client
         const videoStream = fs.createReadStream(videoPath);
         res.setHeader('Content-Type', 'video/mp4');
         res.setHeader('Content-Disposition', 'attachment; filename=video.mp4');
-        
-        // Send the video with streaming
-        videoStream.on('data', chunk => {
-            // Update the progress on each chunk of data sent to the client
-            const progressPercentage = Math.round((videoStream.bytesRead / fs.statSync(videoPath).size) * 100);
-            res.write(`data: ${progressPercentage}%\n\n`);
-        });
 
+        // Pipe the video stream to the response
         videoStream.pipe(res);
 
         videoStream.on('end', () => {
@@ -154,6 +174,7 @@ app.get('/download', async (req, res) => {
 
     } catch (error) {
         console.error('Error:', error);
+        fs.unlinkSync(tempCookiePath); // حذف الكوكيز في حالة حدوث خطأ
         res.status(500).json({ error: 'Failed to download video', message: error });
     }
 });
