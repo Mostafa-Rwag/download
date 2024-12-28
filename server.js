@@ -72,85 +72,84 @@ app.post('/get-formats', async (req, res) => {
 app.get('/download', async (req, res) => {
     const { url, quality } = req.query;
 
-if (!url || !quality) {
-    return res.status(400).json({ error: 'URL and quality are required' });
-}
-
-const videoPath = path.join(__dirname, 'downloads', 'video.mp4');
-const audioPath = path.join(__dirname, 'downloads', 'audio.mp3');
-
-try {
-    // Ensure the downloads directory exists
-    const downloadDir = path.join(__dirname, 'downloads');
-    if (!fs.existsSync(downloadDir)) {
-        fs.mkdirSync(downloadDir);
+    if (!url || !quality) {
+        return res.status(400).json({ error: 'URL and quality are required' });
     }
 
-    // Download video-only or audio if necessary
-    await new Promise((resolve, reject) => {
-        const command = `yt-dlp -f ${quality} -o "${videoPath}" ${url}`;
-        exec(command, (err, stdout, stderr) => {
-            if (err) {
-                reject(`Error during video download: ${stderr}`);
-            } else {
-                resolve(stdout);
-            }
-        });
-    });
+    const videoPath = path.join(__dirname, 'downloads', 'video.mp4');
+    const audioPath = path.join(__dirname, 'downloads', 'audio.mp3');
 
-    // Check if video has audio; if not, download the best audio format
-    const hasAudio = quality.includes('+');
-    if (!hasAudio) {
+    try {
+        // Ensure the downloads directory exists
+        const downloadDir = path.join(__dirname, 'downloads');
+        if (!fs.existsSync(downloadDir)) {
+            fs.mkdirSync(downloadDir);
+        }
+
+        // Download video-only or audio if necessary
         await new Promise((resolve, reject) => {
-            const command = `yt-dlp -f bestaudio -o "${audioPath}" ${url}`;
+            const command = `yt-dlp -f ${quality} -o "${videoPath}" ${url}`;
             exec(command, (err, stdout, stderr) => {
                 if (err) {
-                    reject(`Error during audio download: ${stderr}`);
+                    reject(`Error during video download: ${stderr}`);
                 } else {
                     resolve(stdout);
                 }
             });
         });
 
-        // Merge video and audio
-        const mergedPath = path.join(__dirname, 'downloads', 'merged_video.mp4');
-        await new Promise((resolve, reject) => {
-            const command = `ffmpeg -i "${videoPath}" -i "${audioPath}" -c:v copy -c:a aac "${mergedPath}" -y`;
-            exec(command, (err, stdout, stderr) => {
-                if (err) {
-                    reject(`Error during merging: ${stderr}`);
-                } else {
-                    resolve(stdout);
-                }
+        // Check if video has audio; if not, download the best audio format
+        const hasAudio = quality.includes('+');
+        if (!hasAudio) {
+            await new Promise((resolve, reject) => {
+                const command = `yt-dlp -f bestaudio -o "${audioPath}" ${url}`;
+                exec(command, (err, stdout, stderr) => {
+                    if (err) {
+                        reject(`Error during audio download: ${stderr}`);
+                    } else {
+                        resolve(stdout);
+                    }
+                });
             });
+
+            // Merge video and audio
+            const mergedPath = path.join(__dirname, 'downloads', 'merged_video.mp4');
+            await new Promise((resolve, reject) => {
+                const command = `ffmpeg -i "${videoPath}" -i "${audioPath}" -c:v copy -c:a aac "${mergedPath}" -y`;
+                exec(command, (err, stdout, stderr) => {
+                    if (err) {
+                        reject(`Error during merging: ${stderr}`);
+                    } else {
+                        resolve(stdout);
+                    }
+                });
+            });
+
+            fs.unlinkSync(videoPath);
+            fs.renameSync(mergedPath, videoPath);
+        }
+
+        // Use a stream to send the video to the client
+        const videoStream = fs.createReadStream(videoPath);
+        res.setHeader('Content-Type', 'video/mp4');
+        res.setHeader('Content-Disposition', 'attachment; filename=video.mp4');
+
+        // Pipe the video stream to the response
+        videoStream.pipe(res);
+
+        videoStream.on('end', () => {
+            console.log('File sent successfully');
         });
 
-        fs.unlinkSync(videoPath);
-        fs.renameSync(mergedPath, videoPath);
+        videoStream.on('error', (err) => {
+            console.error('Error during file streaming:', err);
+            res.status(500).send('Error during file download');
+        });
+
+    } catch (error) {
+        console.error('Error:', error);
+        res.status(500).json({ error: 'Failed to download video', message: error });
     }
-
-    // Use a stream to send the video to the client
-    const videoStream = fs.createReadStream(videoPath);
-    res.setHeader('Content-Type', 'video/mp4');
-    res.setHeader('Content-Disposition', 'attachment; filename=video.mp4');
-    
-    // Pipe the video stream to the response
-    videoStream.pipe(res);
-
-    videoStream.on('end', () => {
-        console.log('File sent successfully');
-    });
-
-    videoStream.on('error', (err) => {
-        console.error('Error during file streaming:', err);
-        res.status(500).send('Error during file download');
-    });
-
-} catch (error) {
-    console.error('Error:', error);
-    res.status(500).json({ error: 'Failed to download video', message: error });
-}
-
 });
 
 // Start the server
