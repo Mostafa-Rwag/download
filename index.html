@@ -8,7 +8,6 @@
         body {
             font-family: Arial, sans-serif;
             display: flex;
-            flex-direction: column;
             justify-content: center;
             align-items: center;
             height: 100vh;
@@ -17,62 +16,96 @@
         }
         .container {
             text-align: center;
-            padding: 20px;
+            padding: 30px;
             background-color: white;
             box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
             border-radius: 10px;
         }
-        input, select, button {
-            margin: 10px 0;
+        input[type="url"], select {
             padding: 10px;
-            width: 100%;
+            width: 300px;
+            margin-bottom: 10px;
             border-radius: 5px;
             border: 1px solid #ccc;
         }
         button {
+            padding: 10px 20px;
             background-color: #007bff;
             color: white;
+            border: none;
+            border-radius: 5px;
             cursor: pointer;
         }
         button:hover {
             background-color: #0056b3;
         }
-        video {
+        .error {
+            color: red;
+        }
+        .progress {
             margin-top: 20px;
-            width: 100%;
-            max-width: 600px;
-            border-radius: 10px;
+            font-size: 16px;
+            font-weight: bold;
         }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>Video Downloader</h1>
-        <input type="url" id="videoUrl" placeholder="Enter YouTube URL" required>
-        <select id="qualitySelect" required>
-            <option value="">Select Quality</option>
-        </select>
-        <button id="downloadButton">Download Video</button>
-        <div id="errorMessage" style="color: red;"></div>
+        <form id="downloadForm">
+            <input type="url" id="videoUrl" placeholder="Enter YouTube URL" required><br><br>
+            <select id="qualitySelect" required>
+                <option value="">Select Quality</option>
+            </select><br><br>
+            <button type="submit">Download Video</button>
+        </form>
+        <div class="error" id="errorMessage"></div>
+        <div class="progress" id="progressMessage"></div>
     </div>
 
     <script>
-        const videoUrl = document.getElementById('videoUrl');
-        const qualitySelect = document.getElementById('qualitySelect');
-        const downloadButton = document.getElementById('downloadButton');
-        const errorMessage = document.getElementById('errorMessage');
+        document.getElementById('downloadForm').addEventListener('submit', async (event) => {
+            event.preventDefault();
 
-        // Fetch available video formats when the URL input changes
-        videoUrl.addEventListener('input', async () => {
-            if (!videoUrl.value) return;
+            const url = document.getElementById('videoUrl').value;
+            const quality = document.getElementById('qualitySelect').value;
+
+            if (!url || !quality) {
+                document.getElementById('errorMessage').textContent = 'Please provide a valid URL and select a quality.';
+                return;
+            }
+
+            // Set up SSE to listen for progress updates
+            const eventSource = new EventSource(`/download?url=${encodeURIComponent(url)}&quality=${encodeURIComponent(quality)}`);
+
+            eventSource.onmessage = (event) => {
+                const message = event.data;
+                document.getElementById('progressMessage').textContent = message;
+            };
+
+            eventSource.onerror = () => {
+                document.getElementById('progressMessage').textContent = 'Error occurred during download.';
+                eventSource.close();
+            };
+        });
+
+        async function fetchFormats() {
+            const url = document.getElementById('videoUrl').value;
+            if (!url) return;
+
             try {
                 const response = await fetch('/get-formats', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ url: videoUrl.value })
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ url })
                 });
+
                 const data = await response.json();
-                qualitySelect.innerHTML = '<option value="">Select Quality</option>';
+                const qualitySelect = document.getElementById('qualitySelect');
+                qualitySelect.innerHTML = '<option value="">Select Quality</option>'; // Clear previous options
+
                 data.formats.forEach(format => {
                     const option = document.createElement('option');
                     option.value = format.code;
@@ -82,36 +115,10 @@
             } catch (error) {
                 console.error('Error fetching formats:', error);
             }
-        });
+        }
 
-        // Handle the video download when the user clicks the download button
-        downloadButton.addEventListener('click', async () => {
-            if (!videoUrl.value || !qualitySelect.value) {
-                errorMessage.textContent = 'Please provide a valid URL and select a quality.';
-                return;
-            }
-
-            try {
-                const response = await fetch(`/download?url=${encodeURIComponent(videoUrl.value)}&quality=${encodeURIComponent(qualitySelect.value)}`);
-                if (response.ok) {
-                    const blob = await response.blob();
-                    const url = URL.createObjectURL(blob);
-                    // Trigger the download of the video
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = 'video.mp4'; // Optional: change the filename here if desired
-                    document.body.appendChild(a);
-                    a.click();
-                    a.remove();
-                } else {
-                    const data = await response.json();
-                    errorMessage.textContent = data.error || 'Error during download.';
-                }
-            } catch (error) {
-                errorMessage.textContent = 'Error during download.';
-                console.error(error);
-            }
-        });
+        // Fetch formats when the URL input is filled
+        document.getElementById('videoUrl').addEventListener('input', fetchFormats);
     </script>
 </body>
 </html>
