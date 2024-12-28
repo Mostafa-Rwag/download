@@ -126,38 +126,44 @@
         const videoFrame = document.getElementById('videoFrame');
 
         // Fetch available video formats when the URL input changes
-        videoUrl.addEventListener('input', async () => {
-            if (!videoUrl.value) return;
+        // Fetch available video formats when the URL input changes
+videoUrl.addEventListener('input', async () => {
+    if (!videoUrl.value) return;
 
-            try {
-                const response = await fetch('/get-formats', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ url: videoUrl.value })
-                });
-                const data = await response.json();
+    try {
+        const response = await fetch('/get-formats', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url: videoUrl.value })
+        });
+        const data = await response.json();
 
-                // Filter and display only the basic formats
-                qualitySelect.innerHTML = '<option value="">Select Quality</option>';
-                data.formats.forEach(format => {
-                    // Filter to show only basic MP4 and video qualities
-                    if (format.description.includes('MP4') || format.description.includes('p')) {
-                        const option = document.createElement('option');
-                        option.value = format.code;
-                        option.textContent = format.description;
-                        qualitySelect.appendChild(option);
-                    }
-                });
+        // Filter and display only the most common video qualities
+        const commonQualities = ['360p', '480p', '720p', '1080p', '1440p', '2160p', '4320p'];
+        qualitySelect.innerHTML = '<option value="">Select Quality</option>';
 
-                // Display video in iframe
-                const videoId = videoUrl.value.split('v=')[1];
-                videoFrame.src = `https://www.youtube.com/embed/${videoId}`;
-                videoFrame.style.display = 'block';
-
-            } catch (error) {
-                console.error('Error fetching formats:', error);
+        data.formats.forEach(format => {
+            // Only show formats that contain the common qualities
+            if (commonQualities.some(quality => format.description.includes(quality))) {
+                const option = document.createElement('option');
+                option.value = format.code;
+                option.textContent = format.description;
+                qualitySelect.appendChild(option);
             }
         });
+
+        // Display video in iframe
+        const videoId = videoUrl.value.split('v=')[1];
+        videoFrame.src = `https://www.youtube.com/embed/${videoId}`;
+        videoFrame.style.display = 'block';
+
+    } catch (error) {
+        console.error('Error fetching formats:', error);
+    }
+});
+
+
+               
 
         // Handle the video download when the user clicks the download button
         downloadButton.addEventListener('click', async () => {
