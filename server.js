@@ -17,56 +17,43 @@ app.get('/', (req, res) => {
 });
 
 // Route to get video formats (excluding WebM)
-app.post('/get-formats', async (req, res) => {
-    const { url } = req.body;
-
+app.get('/get-formats', async (req, res) => {
+    const { url } = req.query;
+    
     if (!url) {
         return res.status(400).json({ error: 'URL is required' });
     }
 
-    const command = `yt-dlp -F ${url}`;
-
     try {
-        const result = await new Promise((resolve, reject) => {
-            exec(command, (err, stdout, stderr) => {
-                if (err) {
-                    reject(`Error fetching formats: ${stderr}`);
-                } else {
-                    resolve(stdout);
-                }
-            });
+        const command = `yt-dlp -F ${url}`;
+        exec(command, (err, stdout, stderr) => {
+            if (err) {
+                return res.status(500).json({ error: 'Error fetching formats', message: stderr });
+            }
+
+            // Parse the formats
+            const lines = stdout.split('\n');
+            const formats = lines
+                .filter(line => line.includes('video'))
+                .map(line => {
+                    const parts = line.split(/\s+/);
+                    return {
+                        code: parts[0],
+                        resolution: parts[3],
+                        format: parts[2],
+                        description: `${parts[3]} - ${parts[2]}`,
+                    };
+                });
+
+            // Send available formats to the frontend
+            res.json({ formats });
         });
-
-        const formats = result
-            .split('\n')
-            .filter(line => line.trim() && !line.startsWith('Format code') && !line.includes('webm'))
-            .map(line => {
-                const parts = line.trim().split(/\s{2,}/);
-                return { code: parts[0], description: parts.slice(1).join(' ') };
-            });
-
-        // تصفية الجودات بناءً على قيم الدقة
-        const resolutions = [480, 640, 920, 1024, 1440, 2100];
-        const selectedFormats = formats.filter(format => {
-            const match = format.description.match(/(\d+)p/);
-            return match && resolutions.includes(parseInt(match[1]));
-        });
-
-        // إضافة الجودات الأعلى
-        const higherFormats = formats.filter(format => {
-            const match = format.description.match(/(\d+)p/);
-            return match && parseInt(match[1]) > 2100;
-        });
-
-        // دمج الجودات المحددة والجودات الأعلى
-        const finalFormats = [...selectedFormats, ...higherFormats];
-
-        res.status(200).json({ formats: finalFormats });
     } catch (error) {
         console.error('Error:', error);
-        res.status(500).json({ error: 'Failed to fetch formats', message: error });
+        res.status(500).json({ error: 'Failed to fetch formats' });
     }
 });
+
 
 
 // Route to handle downloading content with quality selection
