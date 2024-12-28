@@ -1,149 +1,117 @@
 const express = require('express');
-const fs = require('fs');
-const path = require('path');
 const { exec } = require('child_process');
+const path = require('path');
+const fs = require('fs');
 const app = express();
-const port = process.env.PORT || 3000;
+const port = 3000;
 
-app.use(express.json()); // لتحليل body JSON
-app.use(express.static(path.join(__dirname, 'downloads'))); // لتقديم الملفات الثابتة مثل الفيديو
+// Middleware to parse JSON bodies
+app.use(express.json());
 
+// Serve static files (e.g., HTML, CSS, JS)
+app.use(express.static(path.join(__dirname, 'public')));
+
+// Route to serve the index.html file at the root URL
 app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'index.html'));
+    res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-// مسار لتحميل الفيديو بالجودة
-app.get('/download', async (req, res) => {
-  const { url, quality } = req.query;
+// Route to get video formats (quality options)
+app.post('/get-formats', async (req, res) => {
+    const { url } = req.body;
 
-  if (!url || !quality) {
-    return res.status(400).json({ error: 'URL and quality are required' });
-  }
-
-  const tempVideoPath = path.join(__dirname, 'downloads', 'video.mp4');
-  const tempAudioPath = path.join(__dirname, 'downloads', 'audio.mp3');
-  const downloadPath = path.join(__dirname, 'downloads', 'final_video.mp4');
-
-  try {
-    // استخدم yt-dlp لجلب الفئات المتاحة أولاً
-    const formats = await getAvailableFormats(url);
-
-    // تحقق مما إذا كانت الجودة المطلوبة موجودة
-    if (!formats.some(format => format.format_id === quality)) {
-      return res.status(400).json({ error: `Requested quality ${quality} is not available` });
+    if (!url) {
+        return res.status(400).json({ error: 'URL is required' });
     }
 
-    // استخدام yt-dlp لتحميل الفيديو بالجودة المطلوبة
-    const command = `yt-dlp -f ${quality} -o "${tempVideoPath}" ${url}`;
-    await execCommand(command);
-
-    // تحقق من وجود الصوت في الفيديو
-    const hasAudioCommand = `ffprobe -v error -show_streams ${tempVideoPath} | grep audio`;
-    const hasAudio = await execCommand(hasAudioCommand);
-
-    if (!hasAudio) {
-      // إذا لم يكن هناك صوت، قم بتحميل الصوت
-      const audioCommand = `yt-dlp -f bestaudio -o "${tempAudioPath}" ${url}`;
-      await execCommand(audioCommand);
-
-      // دمج الصوت مع الفيديو
-      const mergeCommand = `ffmpeg -i ${tempVideoPath} -i ${tempAudioPath} -c:v copy -c:a aac -strict experimental ${downloadPath}`;
-      await execCommand(mergeCommand);
-
-      // حذف الملفات المؤقتة
-      fs.unlinkSync(tempAudioPath);
-    } else {
-      fs.renameSync(tempVideoPath, downloadPath);
-    }
-
-    // إرسال الفيديو مباشرة للمستخدم للتنزيل
-    res.download(downloadPath, 'video.mp4', (err) => {
-      if (err) {
-        console.error('Download error:', err);
-      } else {
-        // حذف الملف بعد التنزيل
-        fs.unlinkSync(downloadPath);
-      }
-    });
-
-  } catch (error) {
-    console.error('Download failed:', error);
-    res.status(500).json({ error: 'Failed to download video', message: error.message });
-  }
-});
-
-// مسار لجلب الفئات (formats) الخاصة بالفيديو
-app.post('/get-formats', (req, res) => {
-  const { url } = req.body;
-  if (!url) {
-    return res.status(400).json({ error: 'URL is required' });
-  }
-
-  // استخدم yt-dlp لجلب الفئات
-  getAvailableFormats(url)
-    .then(formats => {
-      if (formats.length === 0) {
-        return res.status(400).json({ error: 'No formats available for this video' });
-      }
-      res.json({ formats });
-    })
-    .catch(error => {
-      res.status(500).json({ error: 'Failed to fetch formats', message: error.message });
-    });
-});
-
-// دالة للحصول على الفئات المتاحة
-function getAvailableFormats(url) {
-  return new Promise((resolve, reject) => {
     const command = `yt-dlp -F ${url}`;
-    exec(command, (err, stdout, stderr) => {
-      if (err) {
-        reject('Error fetching formats: ' + stderr);
-      } else {
-        const formats = parseFormats(stdout);
-        resolve(formats);
-      }
-    });
-  });
-}
+    try {
+        const result = await new Promise((resolve, reject) => {
+            exec(command, (err, stdout, stderr) => {
+                if (err) {
+                    reject(`Error fetching formats: ${stderr}`);
+                } else {
+                    resolve(stdout);
+                }
+            });
+        });
 
-// دالة تحليل إخراج الفئات
-function parseFormats(output) {
-  const formats = [];
-  const lines = output.split('\n');
+        const formats = result
+            .split('\n')
+            .filter(line => line.trim() && !line.startsWith('Format code'))
+            .map(line => {
+                const parts = line.trim().split(/\s{2,}/);
+                return { code: parts[0], description: parts.slice(1).join(' ') };
+            });
 
-  // استخراج الفئات من الإخراج بناءً على التنسيق
-  lines.forEach(line => {
-    const formatData = line.trim().split(' ');
-    if (formatData.length > 1 && !isNaN(formatData[0])) {
-      formats.push({
-        format_id: formatData[0],
-        resolution: formatData[1] || 'N/A',
-        extension: formatData[2] || 'N/A',
-        filesize: formatData[3] || 'N/A',
-      });
+        res.status(200).json({ formats });
+    } catch (error) {
+        console.error('Error:', error);
+        res.status(500).json({ error: 'Failed to fetch formats', message: error });
     }
-  });
+});
 
-  return formats;
-}
+// Route to handle downloading content with quality selection
+app.get('/download', async (req, res) => {
+    const { url, quality } = req.query;
 
-// دالة تنفيذ الأوامر
-function execCommand(command) {
-  return new Promise((resolve, reject) => {
-    exec(command, (err, stdout, stderr) => {
-      if (err) {
-        console.error('Error executing command:', stderr);
-        reject(stderr);
-      } else {
-        console.log('Command output:', stdout);
-        resolve(stdout);
-      }
-    });
-  });
-}
+    if (!url || !quality) {
+        return res.status(400).json({ error: 'URL and quality are required' });
+    }
 
-// بدء السيرفر
+    const downloadDir = path.join(__dirname, 'downloads');
+    const videoPath = path.join(downloadDir, 'video.mp4');
+    const audioPath = path.join(downloadDir, 'audio.mp4');
+    const finalPath = path.join(downloadDir, 'final_video.mp4');
+
+    try {
+        // Ensure downloads directory exists
+        if (!fs.existsSync(downloadDir)) {
+            fs.mkdirSync(downloadDir);
+        }
+
+        // Download the selected video format
+        const videoCommand = `yt-dlp -f ${quality} -o "${videoPath}" ${url}`;
+        await new Promise((resolve, reject) => {
+            exec(videoCommand, (err, stdout, stderr) => {
+                if (err) reject(`Error downloading video: ${stderr}`);
+                else resolve(stdout);
+            });
+        });
+
+        // Check if video is "video only"
+        const isVideoOnly = quality.includes('video');
+
+        if (isVideoOnly) {
+            // Download the best audio
+            const audioCommand = `yt-dlp -f bestaudio -o "${audioPath}" ${url}`;
+            await new Promise((resolve, reject) => {
+                exec(audioCommand, (err, stdout, stderr) => {
+                    if (err) reject(`Error downloading audio: ${stderr}`);
+                    else resolve(stdout);
+                });
+            });
+
+            // Merge video and audio using FFmpeg
+            const mergeCommand = `ffmpeg -i "${videoPath}" -i "${audioPath}" -c:v copy -c:a aac "${finalPath}"`;
+            await new Promise((resolve, reject) => {
+                exec(mergeCommand, (err, stdout, stderr) => {
+                    if (err) reject(`Error merging video and audio: ${stderr}`);
+                    else resolve(stdout);
+                });
+            });
+
+            res.download(finalPath); // Send the final merged video to the client
+        } else {
+            res.download(videoPath); // Send the video directly if it has audio
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        res.status(500).json({ error: 'Failed to download video', message: error });
+    }
+});
+
+// Start the server
 app.listen(port, () => {
-  console.log(`Server is running on port ${port}`);
+    console.log(`Server running at http://localhost:${port}`);
 });
