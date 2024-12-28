@@ -5,10 +5,7 @@ const fs = require('fs');
 const app = express();
 const port = 3000;
 
-// Middleware to parse JSON bodies
 app.use(express.json());
-
-// Serve static files
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Route to serve the index.html file
@@ -24,13 +21,12 @@ app.post('/get-formats', async (req, res) => {
         return res.status(400).json({ error: 'URL is required' });
     }
 
-    const command = `yt-dlp -F --cookies cookies.txt ${url}`;
+    const command = `yt-dlp -F ${url}`;
 
     try {
         const result = await new Promise((resolve, reject) => {
             exec(command, (err, stdout, stderr) => {
                 if (err) {
-                    console.error(`Error executing yt-dlp: ${stderr}`);
                     reject(`Error fetching formats: ${stderr}`);
                 } else {
                     resolve(stdout);
@@ -46,6 +42,7 @@ app.post('/get-formats', async (req, res) => {
                 return { code: parts[0], description: parts.slice(1).join(' ') };
             });
 
+        // Remove duplicate MP4 formats (MP4 and MP4 DASH)
         const uniqueFormats = [];
         const seen = new Set();
 
@@ -59,7 +56,7 @@ app.post('/get-formats', async (req, res) => {
         res.status(200).json({ formats: uniqueFormats });
     } catch (error) {
         console.error('Error:', error);
-        res.status(500).json({ error: 'Failed to fetch formats', message: error.message });
+        res.status(500).json({ error: 'Failed to fetch formats', message: error });
     }
 });
 
@@ -75,6 +72,7 @@ app.get('/download', async (req, res) => {
     const audioPath = path.join(__dirname, 'downloads', 'audio.mp3');
 
     try {
+        // Download video-only or audio if necessary
         await new Promise((resolve, reject) => {
             const command = `yt-dlp -f ${quality} -o "${videoPath}" ${url}`;
             exec(command, (err, stdout, stderr) => {
@@ -86,6 +84,7 @@ app.get('/download', async (req, res) => {
             });
         });
 
+        // Check if video has audio; if not, download the best audio format
         const hasAudio = quality.includes('+');
         if (!hasAudio) {
             await new Promise((resolve, reject) => {
@@ -99,6 +98,7 @@ app.get('/download', async (req, res) => {
                 });
             });
 
+            // Merge video and audio
             const mergedPath = path.join(__dirname, 'downloads', 'merged_video.mp4');
             await new Promise((resolve, reject) => {
                 const command = `ffmpeg -i "${videoPath}" -i "${audioPath}" -c:v copy -c:a aac "${mergedPath}" -y`;
@@ -115,26 +115,8 @@ app.get('/download', async (req, res) => {
             fs.renameSync(mergedPath, videoPath);
         }
 
-        const stat = fs.statSync(videoPath);
-        res.writeHead(200, {
-            'Content-Type': 'video/mp4',
-            'Content-Length': stat.size,
-        });
-
-        const readStream = fs.createReadStream(videoPath);
-
-        // Streaming video to client
-        readStream.on('data', chunk => {
-            res.write(chunk);
-        });
-
-        
-
-        readStream.on('error', err => {
-            console.error('Error streaming video:', err);
-            res.status(500).json({ error: 'Failed to stream video' });
-        });
-
+        // Send the video as a response
+        res.download(videoPath);
     } catch (error) {
         console.error('Error:', error);
         res.status(500).json({ error: 'Failed to download video', message: error });
