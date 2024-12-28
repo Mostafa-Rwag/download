@@ -5,96 +5,98 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Video Downloader</title>
     <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
         body {
-            font-family: Arial, sans-serif;
+            font-family: 'Arial', sans-serif;
+            background-color: #f4f4f9;
             display: flex;
-            flex-direction: column;
             justify-content: center;
             align-items: center;
             height: 100vh;
-            margin: 0;
-            background-color: #f4f4f9;
+            flex-direction: column;
         }
+
         .container {
-            text-align: center;
-            padding: 20px;
-            background-color: white;
-            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+            background-color: #ffffff;
+            padding: 30px;
             border-radius: 10px;
-            width: 400px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 500px;
+            text-align: center;
         }
+
+        h1 {
+            color: #333;
+            font-size: 1.8rem;
+            margin-bottom: 20px;
+        }
+
         input, select, button {
-            margin: 10px 0;
             padding: 10px;
             width: 100%;
+            margin-bottom: 20px;
             border-radius: 5px;
             border: 1px solid #ccc;
+            font-size: 1rem;
         }
+
+        select {
+            font-size: 1rem;
+        }
+
         button {
             background-color: #007bff;
             color: white;
             cursor: pointer;
+            font-weight: bold;
         }
+
         button:hover {
             background-color: #0056b3;
         }
+
         #progressBar {
             width: 100%;
             background-color: #f3f3f3;
             border-radius: 5px;
+            display: none;
             margin-top: 20px;
         }
+
         #progress {
             height: 20px;
             width: 0;
             background-color: #4caf50;
             border-radius: 5px;
         }
-        iframe {
+
+        #videoFrame {
+            margin-top: 20px;
             width: 100%;
             height: 315px;
             border: none;
-            margin-top: 20px;
         }
-        
-        #qualitySelect {
-    font-size: 16px;
-    padding: 12px;
-    border-radius: 8px;
-    border: 1px solid #ccc;
-    width: 100%;
-    background-color: #fff;
-    color: #333;
-    appearance: none; /* Remove default dropdown style */
-    -webkit-appearance: none; /* Remove default dropdown style in Safari */
-    -moz-appearance: none; /* Remove default dropdown style in Firefox */
-    background-image: url('https://img.icons8.com/ios/452/downward-arrow.png'); /* Custom arrow */
-    background-repeat: no-repeat;
-    background-position: right 10px center;
-    background-size: 20px;
-}
 
-#qualitySelect:focus {
-    border-color: #007bff;
-    outline: none;
-}
+        /* Responsive design */
+        @media screen and (max-width: 600px) {
+            h1 {
+                font-size: 1.5rem;
+            }
 
-#qualitySelect option {
-    font-size: 14px;
-    padding: 10px;
-}
+            input, select, button {
+                padding: 12px;
+                font-size: 1rem;
+            }
 
-#qualitySelect option:hover {
-    background-color: #f2f2f2;
-}
-
-#qualitySelect option:active {
-    background-color: #007bff;
-    color: white;
-}
-
-
-
+            .container {
+                padding: 20px;
+            }
+        }
     </style>
 </head>
 <body>
@@ -107,11 +109,9 @@
         <button id="downloadButton">Download Video</button>
         <div id="errorMessage" style="color: red;"></div>
 
-        <!-- Iframe for displaying the video -->
         <iframe id="videoFrame" style="display: none;"></iframe>
 
-        <!-- Progress bar for download -->
-        <div id="progressBar" style="display: none;">
+        <div id="progressBar">
             <div id="progress"></div>
         </div>
     </div>
@@ -126,56 +126,42 @@
         const videoFrame = document.getElementById('videoFrame');
 
         // Fetch available video formats when the URL input changes
-
-
-
-
         videoUrl.addEventListener('input', async () => {
-    if (!videoUrl.value) return;
+            if (!videoUrl.value) return;
 
-    try {
-        const response = await fetch('/get-formats', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ url: videoUrl.value })
-        });
-        const data = await response.json();
+            try {
+                const response = await fetch('/get-formats', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url: videoUrl.value })
+                });
+                const data = await response.json();
 
-        // Filter and display only unique resolutions, excluding webm formats
-        qualitySelect.innerHTML = '<option value="">Select Quality</option>';
+                qualitySelect.innerHTML = '<option value="">Select Quality</option>';
 
-        const seen = new Set(); // To track seen resolutions
+                const seen = new Set(); // To track seen resolutions
 
-        // Iterate through the formats and display unique resolutions
-        data.formats.forEach(format => {
-            const resolution = format.description.match(/\d+p/); // Capture resolutions like 720p, 1080p
+                data.formats.forEach(format => {
+                    const resolution = format.description.match(/\d+p/);
 
-            if (resolution && !seen.has(resolution[0]) && !format.description.includes('webm')) {
-                const option = document.createElement('option');
-                option.value = format.code;
-                option.textContent = resolution[0]; // Show only the resolution (e.g., 720, 1080)
-                qualitySelect.appendChild(option);
-                seen.add(resolution[0]); // Add resolution to the set to avoid duplicates
+                    if (resolution && !seen.has(resolution[0]) && !format.description.includes('webm')) {
+                        const option = document.createElement('option');
+                        option.value = format.code;
+                        option.textContent = resolution[0];
+                        qualitySelect.appendChild(option);
+                        seen.add(resolution[0]);
+                    }
+                });
+
+                const videoId = videoUrl.value.split('v=')[1];
+                videoFrame.src = `https://www.youtube.com/embed/${videoId}`;
+                videoFrame.style.display = 'block';
+
+            } catch (error) {
+                console.error('Error fetching formats:', error);
             }
         });
 
-        // Display video in iframe
-        const videoId = videoUrl.value.split('v=')[1];
-        videoFrame.src = `https://www.youtube.com/embed/${videoId}`;
-        videoFrame.style.display = 'block';
-
-    } catch (error) {
-        console.error('Error fetching formats:', error);
-    }
-});
-
-
-
-
-
-               
-
-        // Handle the video download when the user clicks the download button
         downloadButton.addEventListener('click', async () => {
             if (!videoUrl.value || !qualitySelect.value) {
                 errorMessage.textContent = 'Please provide a valid URL and select a quality.';
@@ -191,7 +177,6 @@
                     const blob = await response.blob();
                     const url = URL.createObjectURL(blob);
 
-                    // Trigger the download of the video
                     const a = document.createElement('a');
                     a.href = url;
                     a.download = 'video.mp4';
