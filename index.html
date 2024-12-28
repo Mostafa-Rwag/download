@@ -172,36 +172,60 @@ videoUrl.addEventListener('input', async () => {
 
         // Handle the video download when the user clicks the download button
         downloadButton.addEventListener('click', async () => {
-            if (!videoUrl.value || !qualitySelect.value) {
-                errorMessage.textContent = 'Please provide a valid URL and select a quality.';
-                return;
-            }
+    if (!videoUrl.value || !qualitySelect.value) {
+        errorMessage.textContent = 'Please provide a valid URL and select a quality.';
+        return;
+    }
 
-            progressBar.style.display = 'block';
-            progress.style.width = '0%';
+    progressBar.style.display = 'block';
+    progress.style.width = '0%';
 
-            try {
-                const response = await fetch(`/download?url=${encodeURIComponent(videoUrl.value)}&quality=${encodeURIComponent(qualitySelect.value)}`);
-                if (response.ok) {
-                    const blob = await response.blob();
-                    const url = URL.createObjectURL(blob);
-
-                    // Trigger the download of the video
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = 'video.mp4';
-                    document.body.appendChild(a);
-                    a.click();
-                    a.remove();
-                } else {
-                    const data = await response.json();
-                    errorMessage.textContent = data.error || 'Error during download.';
-                }
-            } catch (error) {
-                errorMessage.textContent = 'Error during download.';
-                console.error(error);
-            }
+    try {
+        const response = await fetch(`/download?url=${encodeURIComponent(videoUrl.value)}&quality=${encodeURIComponent(qualitySelect.value)}`, {
+            method: 'GET',
         });
+
+        if (response.ok) {
+            // Create a stream to download the file
+            const totalSize = +response.headers.get('Content-Length');
+            let loadedSize = 0;
+
+            const reader = response.body.getReader();
+            const writer = new WritableStream({
+                write(chunk) {
+                    loadedSize += chunk.length;
+                    const progressPercentage = (loadedSize / totalSize) * 100;
+                    progress.style.width = `${progressPercentage}%`; // Update progress bar
+                }
+            });
+
+            // Create a new stream to download and save the file
+            const stream = new Response(reader, { headers: { "Content-Type": "video/mp4" } }).body.pipeTo(writer);
+
+            // Trigger the file download
+            const a = document.createElement('a');
+            const url = URL.createObjectURL(await response.blob());
+            a.href = url;
+            a.download = 'video.mp4';  // Set the default file name for download
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+
+            // Once download starts, hide progress bar
+            stream.then(() => {
+                progressBar.style.display = 'none';
+            });
+
+        } else {
+            const data = await response.json();
+            errorMessage.textContent = data.error || 'Error during download.';
+        }
+    } catch (error) {
+        errorMessage.textContent = 'Error during download.';
+        console.error(error);
+    }
+});
+
     </script>
 </body>
 </html>
