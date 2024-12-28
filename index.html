@@ -126,7 +126,11 @@
         const videoFrame = document.getElementById('videoFrame');
 
         // Fetch available video formats when the URL input changes
-   videoUrl.addEventListener('input', async () => {
+
+
+
+
+        videoUrl.addEventListener('input', async () => {
     if (!videoUrl.value) return;
 
     try {
@@ -137,23 +141,21 @@
         });
         const data = await response.json();
 
-        // Filter and display only unique formats without duplicates
+        // Filter and display only unique resolutions, excluding webm formats
         qualitySelect.innerHTML = '<option value="">Select Quality</option>';
 
-        const seen = new Set(); // To track seen formats (code + description)
+        const seen = new Set(); // To track seen resolutions
 
+        // Iterate through the formats and display unique resolutions
         data.formats.forEach(format => {
-            // Extract only the resolution part (e.g., 720p, 1080p)
-            const resolution = format.description.match(/\d+p/); // This will match "720p", "1080p", etc.
-            if (resolution) {
-                // Only display if it's not a duplicate resolution
-                if (!seen.has(resolution[0])) {
-                    const option = document.createElement('option');
-                    option.value = format.code;
-                    option.textContent = resolution[0]; // Show only the resolution (720p, 1080p)
-                    qualitySelect.appendChild(option);
-                    seen.add(resolution[0]); // Add resolution to the set to avoid duplicates
-                }
+            const resolution = format.description.match(/\d+p/); // Capture resolutions like 720p, 1080p
+
+            if (resolution && !seen.has(resolution[0]) && !format.description.includes('webm')) {
+                const option = document.createElement('option');
+                option.value = format.code;
+                option.textContent = resolution[0]; // Show only the resolution (e.g., 720, 1080)
+                qualitySelect.appendChild(option);
+                seen.add(resolution[0]); // Add resolution to the set to avoid duplicates
             }
         });
 
